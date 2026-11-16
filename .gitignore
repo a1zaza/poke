@@ -1,0 +1,43 @@
+# Dependencies and generated files
+node_modules/
+dist/
+dist-ssr/
+server/webui/dist/
+server/server
+server-linux-*
+*.tsbuildinfo
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+agent-secrets/
+enrollment-token
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Runtime data and logs
+server/data/
+data/
+logs/
+*.log
+*.local
+scratch/
+
+# Personal tools and editor settings
+/.agents/
+/.aws/
+/.codex/
+/.claude/
+/.gemini/
+/.ssh/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.njsproj
+*.sln
+*.sw?

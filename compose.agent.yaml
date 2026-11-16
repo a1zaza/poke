@@ -1,0 +1,15 @@
+name: poke-agent
+
+services:
+  agent:
+    image: ${POKE_IMAGE:?}
+    init: true
+    restart: unless-stopped
+    environment:
+      POKE_MODE: agent
+      POKE_CONTROLLER_URL: ${POKE_CONTROLLER_URL:?}
+      POKE_NODE_ID: ${POKE_NODE_ID:?}
+      POKE_ENROLLMENT_TOKEN_FILE: ${POKE_ENROLLMENT_TOKEN_FILE:-}
+    volumes:
+      - /poke:/poke
+      - /var/run/docker.sock:/var/run/docker.sock

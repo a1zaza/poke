@@ -1,0 +1,16 @@
+name: poke-controller
+
+services:
+  controller:
+    image: ${POKE_IMAGE:?}
+    init: true
+    restart: unless-stopped
+    environment:
+      POKE_MODE: controller
+    ports:
+      - "80:80"
+    volumes:
+      - controller_data:/poke
+
+volumes:
+  controller_data:

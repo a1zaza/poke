@@ -1,0 +1,17 @@
+{
+    "name": "Poke",
+    "short_name": "Poke",
+    "description": "Docker 与 Compose 可视化管理工具",
+    "lang": "zh-CN",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#000000",
+    "theme_color": "#007AFF",
+    "icons": [
+        {
+            "src": "/logo.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
