@@ -11,6 +11,10 @@
               <component :is="isEditing ? X : FileEdit" :size="14" style="margin-right: 4px" />
               {{ isEditing ? '取消' : '编辑配置' }}
             </button>
+            <button v-if="isEditing" class="btn btn-save" @click="handleSaveCompose" :disabled="actionLoading">
+              <Save :size="14" />
+              {{ actionLoading ? '正在部署…' : '保存并重新部署' }}
+            </button>
           </template>
 
           <template v-if="runningCount < totalCount">
@@ -76,14 +80,6 @@
             <h3>编辑 docker-compose.yml</h3>
           </div>
           <textarea class="textarea" v-model="editedContent" spellcheck="false"></textarea>
-          <div class="editor-actions">
-            <button class="btn btn-cancel" @click="isEditing = false">取消</button>
-            <button class="btn btn-save" @click="handleSaveCompose" :disabled="actionLoading">
-              <Save :size="14" style="margin-right: 6px" />
-              保存并重新部署
-              <span v-if="actionLoading" class="loader-inline"></span>
-            </button>
-          </div>
         </div>
 
         <div class="card full-width">

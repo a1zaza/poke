@@ -11,15 +11,22 @@
     <span class="resource-count" aria-live="polite">{{
       modelValue ? `${filtered} / ${total}` : `共 ${total} 项`
     }}</span>
-    <button class="secondary refresh-button" :disabled="loading" @click="$emit('refresh')">
-      <RefreshCw :size="14" :class="{ spin: loading }" />刷新
-    </button>
+    <Teleport v-if="mounted" to="#header-action">
+      <button class="secondary refresh-button" :disabled="loading" @click="$emit('refresh')">
+        <RefreshCw :size="14" :class="{ spin: loading }" />刷新
+      </button>
+    </Teleport>
   </div>
 </template>
 <script setup lang="ts">
 import { RefreshCw, Search } from 'lucide-vue-next';
+import { onMounted, ref } from 'vue';
 defineProps<{ modelValue: string; total: number; filtered: number; loading: boolean; placeholder: string }>();
 defineEmits<{ 'update:modelValue': [value: string]; refresh: [] }>();
+const mounted = ref(false);
+onMounted(() => {
+  mounted.value = true;
+});
 </script>
 <style scoped>
 .resource-toolbar {
@@ -50,7 +57,6 @@ defineEmits<{ 'update:modelValue': [value: string]; refresh: [] }>();
   white-space: nowrap;
 }
 .refresh-button {
-  margin-left: auto;
   font-size: 12px;
 }
 @media (max-width: 540px) {

@@ -28,15 +28,18 @@
           <span class="breadcrumb-root">控制台</span><ChevronRight :size="13" />
           <strong>{{ sectionTitle }}</strong>
         </div>
-        <div class="instance-state" :title="currentNode?.name || '在系统设置中添加 Agent 节点'">
-          <span class="status-dot" :class="{ running: currentNode?.status === 'online' }" />
-          <span>{{
-            systemStore.loading && !systemStore.ready
-              ? '正在连接节点'
-              : currentNode?.is_local
-                ? systemStore.info.hostname
-                : currentNode?.name || '未选择节点'
-          }}</span>
+        <div class="topbar-actions">
+          <div class="instance-state" :title="currentNode?.name || '在系统设置中添加 Agent 节点'">
+            <span class="status-dot" :class="{ running: currentNode?.status === 'online' }" />
+            <span>{{
+              systemStore.loading && !systemStore.ready
+                ? '正在连接节点'
+                : currentNode?.is_local
+                  ? systemStore.info.hostname
+                  : currentNode?.name || '未选择节点'
+            }}</span>
+          </div>
+          <div id="header-action" class="header-actions" />
         </div>
       </header>
       <div class="workspace-content">
@@ -56,7 +59,6 @@
             </div>
             <p>{{ description }}</p>
           </div>
-          <div id="header-action" class="heading-actions" />
         </section>
         <div class="page-body"><slot /></div>
         <footer class="console-footer">
@@ -169,8 +171,18 @@ onUnmounted(() => query?.removeEventListener('change', updateViewport));
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
   background: var(--window-header);
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
 }
 .breadcrumb {
   display: flex;
@@ -241,17 +253,22 @@ h1 {
   margin-top: 5px;
   line-height: 1.8;
 }
-.heading-actions {
+.header-actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
-  flex-shrink: 0;
-  max-width: 60%;
+  justify-content: flex-end;
+  max-width: 100%;
 }
-.heading-actions:empty {
+.header-actions:empty {
   display: none;
+}
+.header-actions :deep(.header-controls),
+.header-actions :deep(.controls) {
+  justify-content: flex-end;
+  max-width: 100%;
 }
 .page-body {
   flex: 1;
@@ -277,8 +294,12 @@ h1 {
     align-items: flex-start;
     flex-wrap: wrap;
   }
-  .heading-actions {
-    max-width: 100%;
+  .topbar-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .instance-state > span:last-child {
+    max-width: 140px;
   }
   .workspace-content {
     padding: 24px 20px 16px;
@@ -315,8 +336,12 @@ h1 {
   h1 {
     font-size: 22px;
   }
-  .heading-actions {
-    width: 100%;
+  .topbar-actions:has(.header-actions:not(:empty)) .instance-state {
+    display: none;
+  }
+  .header-actions :deep(.header-controls),
+  .header-actions :deep(.controls) {
+    display: contents;
   }
   .sidebar-mask {
     display: block;

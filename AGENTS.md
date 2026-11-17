@@ -16,6 +16,7 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 - 前端检查使用 `npm run typecheck` 和 `npm test`；后端检查使用 `go test -race ./...`、`go vet ./...` 和 `gofmt -l .`。
 - 前端界面参照相邻 `v2way` 的深灰、蓝色强调与紧凑布局，保留 Vue 3；相邻项目仅只读参考，不复制其私有数据。内容区最大宽度 1600px，720px 以下使用抽屉导航，保留浅色主题。
 - 公共设计变量位于 `src/style.css`，资源列表及详情样式分别位于 `src/styles/resources.css`、`src/styles/details.css`。列表搜索复用 `ResourceToolbar` 与 `useResourceFilter`，仅在本地过滤，不改变 API 或节点作用域。
+- 页面级操作（包括资源刷新）统一传送至顶部导航栏右侧的 `#header-action`；内容标题区不放操作按钮，列表内保留搜索与计数，行级操作仍随资源展示。窄屏操作区允许换行。
 - Modal 保留焦点约束、Escape 关闭和关闭后焦点恢复；Select 使用传送到 body 的视口定位列表，支持方向键、Home/End、Enter 和 Escape，不恢复为不可聚焦的 div 触发器。
 - 协议集成测试使用临时回环端口，不依赖真实 Docker；受限环境需要允许测试绑定端口。
 - 不自动执行 Docker 构建、启动开发服务或安装系统软件；按明确任务授权操作。

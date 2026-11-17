@@ -126,12 +126,6 @@ button.btn-edit {
   line-height: 1.8;
   tab-size: 2;
 }
-.editor-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-}
 .container-list {
   display: flex;
   flex-direction: column;
