@@ -21,6 +21,8 @@ Agent 主动连接 Controller，节点身份、配置和任务以 JSON 持久化
 
 ## 首次接入
 
+管理员默认用户名为 `admin`。Web 首次初始化成功后，日志会打印一次用户名和随机密码；重启不会重复打印或重置账号。登录需要同时填写用户名和密码，可在“系统设置 → 基本设置”修改用户名。用户名为 1–64 位，以字母或数字开头，支持字母、数字、下划线、点、`@` 和连字符；已有配置缺少用户名时会补为 `admin` 并保留原密码。
+
 仓库提供两份独立 Compose 文件：主节点使用根目录 `compose.yaml`，各从节点使用 `compose.agent.yaml`。两端分别复制 `.env.example` 为本机 `.env`，默认使用 `ghcr.io/a1zaza/poke:latest`；可将 `POKE_IMAGE` 设置为固定版本，例如 `ghcr.io/a1zaza/poke:1.0.0`。Controller 域名需替换为实际地址。
 
 主节点配置镜像、端口及 HTTPS 入口后，由部署者执行：
@@ -93,7 +95,7 @@ Compose 模板仅保留必要配置；按需在部署副本中增加以下内容
 
 | 文件 | 内容 |
 | --- | --- |
-| `/poke/config.json` | Controller/standalone 的普通设置与管理员密码哈希 |
+| `/poke/config.json` | Controller/standalone 的普通设置、管理员用户名与密码哈希 |
 | `/poke/secrets.json` | 私有仓库用户名和密码 |
 | `/poke/controller/nodes.json` | 节点信息、仓库授权、注册凭据摘要及独立身份摘要 |
 | `/poke/controller/tasks/<ID>.json` | Controller 的任务状态与结果 |

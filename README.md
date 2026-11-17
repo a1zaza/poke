@@ -71,7 +71,7 @@ Controller 可通过 `POKE_LOCAL_ENABLED=true` 同时管理本机 Docker。三�
 docker compose -f compose.yaml up -d
 ```
 
-容器内 Web 端口为 `80`，外部端口按 Compose 映射访问。**首次启动生成的管理员密码会输出到服务日志。** HTTPS 入口和反向代理设置见[部署文档](docs/deployment.md)。
+容器内 Web 端口为 `80`，外部端口按 Compose 映射访问。**默认用户名为 `admin`，首次初始化时用户名与随机密码仅打印一次到服务日志。** 用户名可在系统设置中修改。HTTPS 入口和反向代理设置见[部署文档](docs/deployment.md)。
 
 ### 2. 接入 Agent
 

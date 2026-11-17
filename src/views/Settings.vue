@@ -1,7 +1,11 @@
 <template>
   <DashboardLayout>
     <Teleport v-if="mounted && activeSection !== 'nodes'" to="#header-action"
-      ><button class="btn-submit" :disabled="saving || loading || !!loadError" @click="handleSave">
+      ><button
+        class="btn-submit"
+        :disabled="saving || loading || !!loadError || !username"
+        @click="handleSave"
+      >
         <Save :size="14" />{{ saving ? '正在保存…' : '保存设置' }}
       </button></Teleport
     >
@@ -44,6 +48,17 @@
           <label for="hostname"><Layout :size="14" />主机名称</label
           ><input id="hostname" v-model="hostname" placeholder="留空使用系统主机名" autocomplete="off" />
           <p class="hint">显示在节点选择器中，方便区分不同实例。</p>
+        </div>
+        <div class="settings-field">
+          <label for="admin-username"><User :size="14" />管理员用户名</label>
+          <input
+            id="admin-username"
+            v-model="username"
+            maxlength="64"
+            autocomplete="username"
+            placeholder="admin"
+          />
+          <p class="hint">1–64 位，以字母或数字开头，支持字母、数字、下划线、点、@ 和连字符。</p>
         </div>
         <div class="settings-field">
           <label for="new-password"><Lock :size="14" />管理员密码</label
@@ -136,6 +151,7 @@ const systemStore = useSystemStore();
 
 const activeSection = ref('general');
 const hostname = ref('');
+const username = ref('admin');
 const password = ref('');
 const logo = ref('');
 const registries = ref<any[]>([]);
@@ -149,6 +165,7 @@ const fetchConfig = async () => {
   loading.value = true;
   try {
     const data = await request('/api/settings/system', { localOnly: true });
+    username.value = data.username || 'admin';
     if (data.hostname) hostname.value = data.hostname;
     if (data.logo) logo.value = data.logo;
     registries.value = (data.registries || []).map((r: any) => ({ ...r, password: '' })); // don't show existing passwords
@@ -172,7 +189,7 @@ const removeRegistry = (index: number) => {
 const handleSave = async () => {
   saving.value = true;
   try {
-    const updates: any = {};
+    const updates: any = { username: username.value };
     if (hostname.value) updates.hostname = hostname.value;
     if (password.value) updates.password = password.value;
     if (logo.value && logo.value.startsWith('data:')) {
@@ -191,7 +208,7 @@ const handleSave = async () => {
     await systemStore.fetchSystemInfo();
     if (password.value) password.value = '';
   } catch (err) {
-    toastStore.addToast('保存失败', 'error');
+    toastStore.addToast(err instanceof Error ? err.message : '保存失败', 'error');
   } finally {
     saving.value = false;
   }

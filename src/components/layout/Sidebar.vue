@@ -46,7 +46,7 @@
       <div class="account">
         <span class="avatar"><ShieldCheck :size="16" /></span>
         <div>
-          管理员<small>{{ info.isController ? '多节点管理' : '本机管理' }}</small>
+          {{ info.username }}<small>{{ info.isController ? '多节点管理' : '本机管理' }}</small>
         </div>
       </div>
       <button
@@ -324,6 +324,9 @@ const isActive = (href: string) => {
 }
 .account > div {
   min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .account small {
   white-space: nowrap;

@@ -42,6 +42,7 @@ type ContainerListItem struct {
 }
 
 type LoginRequest struct {
+	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
@@ -51,7 +52,7 @@ func (h *Handler) Login(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
 	}
 
-	if config.VerifyPassword(req.Password) {
+	if config.VerifyCredentials(req.Username, req.Password) {
 		token, err := auth.CreateSession("admin")
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create session"})
@@ -63,7 +64,7 @@ func (h *Handler) Login(c echo.Context) error {
 	}
 
 	logger.Warn("AUTH", "Failed login attempt from %s", c.RealIP())
-	return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid password"})
+	return c.JSON(http.StatusUnauthorized, map[string]string{"error": "用户名或密码错误"})
 }
 
 func (h *Handler) Logout(c echo.Context) error {
@@ -666,6 +667,7 @@ func (h *Handler) GetSettings(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
+		"username":      cfg.Auth.Username,
 		"local_enabled": h.LocalEnabled,
 		"hostname":      hostname,
 		"logo":          logoURL,
@@ -691,6 +693,16 @@ func (h *Handler) UpdateSettings(c echo.Context) error {
 	}
 
 	updates := make(map[string]interface{})
+	if raw, exists := req["username"]; exists {
+		username, ok := raw.(string)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "用户名必须为字符串"})
+		}
+		if err := config.ValidateUsername(username); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
+		updates["username"] = username
+	}
 
 	if hostname, ok := req["hostname"].(string); ok {
 		updates["hostname"] = hostname

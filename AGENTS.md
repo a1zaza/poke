@@ -25,7 +25,7 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 
 # 测试账号
 
-没有固定测试账号。首次启动 Web 服务时生成随机管理员密码，输出到服务日志。测试中的密码和域名均为构造数据。
+默认管理员用户名为 `admin`，没有固定密码。首次初始化 Web 服务成功后，仅打印一次用户名和随机密码；已有配置缺少用户名时补为 `admin` 并保留密码，不重复打印。测试中的密码和域名均为构造数据。
 
 # 常见问题
 
@@ -52,6 +52,7 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 - 后端要求 Go 1.26.11 或更新补丁版本。Web API 使用标准库 `CrossOriginProtection`，包括登录、退出接口；反向代理和 Vite `/api` 代理必须保留原 Host、Origin 和 Sec-Fetch-Site。无浏览器来源头的 Agent 请求仍依靠节点认证。
 - 管理员会话有效期 24 小时，签名密钥每次启动随机生成；HTTPS 入口需传递 `X-Forwarded-Proto: https` 或设置 `COOKIE_SECURE=true`。
 - 密码使用 Argon2id；保留现有密码验证和迁移测试，避免清理文档时改变认证行为。
+- 管理员用户名保存在配置的 `auth.username`，登录必须同时验证用户名和密码；系统设置返回可编辑的 `username`，不得返回密码哈希。用户名为 1–64 位 ASCII 字符，以字母或数字开头，支持 `_ . @ -`；账号修改保存成功后才更新内存状态。JWT 内部管理员主体保持稳定，不将可修改的登录名作为新的权限标识。
 - 镜像采用多阶段构建，前端经 `embed_frontend` 标签编入 Go，不在工作区导出中间产物。
 - 镜像打包测试可执行 `docker build --progress=plain -t poke:build-test .`；Dockerfile 内完成前端编译、嵌入资源测试、go vet 与 Go 编译。2026-11-17 已在 linux/amd64 构建成功，arm64 由工作流另行验证。
 - 字体按用户要求与 `v2way` 一致：`Consolas, 'LXGW WenKai', monospace`。本地字体位于 `src/assets/fonts/`，通过 `@font-face` 和 `font-display: swap` 加载；表单与代码继承全局字体，xterm 在字体加载后初始化并采用同一字体栈。不要提交个人配置、真实凭据、运行数据或私有基础设施地址。

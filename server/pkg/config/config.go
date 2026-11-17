@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -38,7 +39,19 @@ type Config struct {
 }
 
 type AuthConfig struct {
+	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+const DefaultUsername = "admin"
+
+var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.@-]{0,63}$`)
+
+func ValidateUsername(username string) error {
+	if !usernamePattern.MatchString(username) {
+		return fmt.Errorf("用户名须为 1–64 位，以字母或数字开头，仅支持字母、数字、下划线、点、@ 和连字符")
+	}
+	return nil
 }
 
 type SystemConfig struct {
@@ -140,7 +153,7 @@ func getConfigLocked() *Config {
 			return failConfigLoad(fmt.Errorf("hash initial password: %w", err))
 		}
 		instance = &Config{
-			Auth:   AuthConfig{Password: hashedPw},
+			Auth:   AuthConfig{Username: DefaultUsername, Password: hashedPw},
 			System: SystemConfig{},
 		}
 		if err := saveConfig(instance); err != nil {
@@ -148,6 +161,7 @@ func getConfigLocked() *Config {
 		}
 
 		fmt.Println("----------------------------------------")
+		fmt.Printf("Initial Admin Username: %s\n", instance.Auth.Username)
 		fmt.Printf("Initial Admin Password: %s\n", plainPw)
 		fmt.Println("----------------------------------------")
 		return instance
@@ -160,6 +174,13 @@ func getConfigLocked() *Config {
 	if err := json.Unmarshal(data, instance); err != nil {
 		return failConfigLoad(fmt.Errorf("parse config: %w", err))
 	}
+	missingUsername := instance.Auth.Username == ""
+	if missingUsername {
+		instance.Auth.Username = DefaultUsername
+	}
+	if err := ValidateUsername(instance.Auth.Username); err != nil {
+		return failConfigLoad(fmt.Errorf("invalid administrator username: %w", err))
+	}
 
 	hadInlineSecrets := hasInlineSecrets(instance)
 	secrets, secretsExist, err := loadSecrets()
@@ -168,7 +189,7 @@ func getConfigLocked() *Config {
 	}
 	applySecrets(instance, secrets)
 
-	if hadInlineSecrets || !secretsExist {
+	if hadInlineSecrets || !secretsExist || missingUsername {
 		if err := saveConfig(instance); err != nil {
 			return failConfigLoad(fmt.Errorf("migrate config secrets: %w", err))
 		}
@@ -192,7 +213,23 @@ func VerifyPassword(input string) bool {
 	if configLoadErr != nil {
 		return false
 	}
+	return verifyPasswordLocked(cfg, input)
+}
 
+func VerifyCredentials(username, password string) bool {
+	if ValidateUsername(username) != nil {
+		return false
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	cfg := getConfigLocked()
+	if configLoadErr != nil || username != cfg.Auth.Username {
+		return false
+	}
+	return verifyPasswordLocked(cfg, password)
+}
+
+func verifyPasswordLocked(cfg *Config, input string) bool {
 	valid, needsMigration, err := verifyPasswordHash(input, cfg.Auth.Password)
 	if err != nil || !valid {
 		return false
@@ -448,7 +485,17 @@ func UpdateConfig(updates map[string]interface{}) error {
 	if configLoadErr != nil {
 		return fmt.Errorf("configuration unavailable: %w", configLoadErr)
 	}
-	previous := cloneConfig(cfg)
+	cfg = cloneConfig(cfg)
+	if raw, exists := updates["username"]; exists {
+		username, ok := raw.(string)
+		if !ok {
+			return fmt.Errorf("用户名必须为字符串")
+		}
+		if err := ValidateUsername(username); err != nil {
+			return err
+		}
+		cfg.Auth.Username = username
+	}
 
 	// Update hostname
 	if hostname, ok := updates["hostname"].(string); ok {
@@ -502,8 +549,8 @@ func UpdateConfig(updates map[string]interface{}) error {
 	}
 
 	if err := saveConfig(cfg); err != nil {
-		instance = previous
 		return err
 	}
+	instance = cfg
 	return nil
 }

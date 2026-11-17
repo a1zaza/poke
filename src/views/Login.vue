@@ -20,11 +20,25 @@
       <form @submit.prevent="handleLogin">
         <span class="eyebrow">控制台登录</span>
         <h2 id="login-title">欢迎回来</h2>
-        <p class="login-intro">输入管理员密码，继续管理你的容器环境。</p>
+        <p class="login-intro">使用管理员账户，继续管理你的容器环境。</p>
+        <label for="admin-username">用户名</label>
+        <input
+          id="admin-username"
+          ref="usernameInput"
+          v-model="username"
+          type="text"
+          placeholder="默认用户名 admin"
+          maxlength="64"
+          :disabled="loading"
+          autocomplete="username"
+          required
+          :aria-invalid="!!error"
+          :aria-describedby="error ? 'login-error' : undefined"
+          class="username-input"
+        />
         <label for="admin-password">管理员密码</label>
         <input
           id="admin-password"
-          ref="passwordInput"
           v-model="password"
           type="password"
           placeholder="请输入密码"
@@ -35,14 +49,16 @@
           :aria-describedby="error ? 'login-error' : undefined"
         />
         <p v-if="error" id="login-error" class="inline-error login-error" role="alert">{{ error }}</p>
-        <button type="submit" class="primary login-submit" :disabled="loading || !password">
+        <button type="submit" class="primary login-submit" :disabled="loading || !username || !password">
           <LoaderCircle v-if="loading" :size="16" class="spin" /><span>{{
             loading ? '正在登录…' : '进入控制台'
           }}</span
           ><ArrowRight v-if="!loading" :size="16" />
         </button>
         <div class="login-note">
-          <KeyRound :size="15" /><span>首次启动会自动生成管理员密码，请从服务的首次启动日志中获取。</span>
+          <KeyRound :size="15" /><span
+            >默认用户名为 admin。首次初始化时会打印用户名和随机密码，请从服务日志获取。</span
+          >
         </div>
       </form>
     </section>
@@ -54,25 +70,26 @@ import { useRouter } from 'vue-router';
 import { Box, Layers, KeyRound, Network, ArrowRight, LoaderCircle } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 
+const username = ref('');
 const password = ref('');
 const loading = ref(false);
 const error = ref('');
-const passwordInput = ref<HTMLInputElement | null>(null);
+const usernameInput = ref<HTMLInputElement | null>(null);
 
 const router = useRouter();
 const authStore = useAuthStore();
 
 const handleLogin = async () => {
-  if (!password.value) return;
+  if (!username.value || !password.value) return;
   loading.value = true;
   error.value = '';
 
   try {
-    const success = await authStore.login(password.value);
+    const success = await authStore.login(username.value, password.value);
     if (success) {
       router.push('/');
     } else {
-      error.value = '密码错误，请重试';
+      error.value = '用户名或密码错误，请重试';
     }
   } catch (e) {
     error.value = '登录失败，请检查网络';
@@ -82,10 +99,13 @@ const handleLogin = async () => {
 };
 
 onMounted(() => {
-  passwordInput.value?.focus();
+  usernameInput.value?.focus();
 });
 </script>
 <style scoped>
+.username-input {
+  margin-bottom: 20px;
+}
 .login-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
