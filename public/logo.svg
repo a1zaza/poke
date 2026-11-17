@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Poke 标志</title>
+  <desc id="desc">蓝色圆角方块中的白色字母 P，连接一个薄荷绿色节点，代表统一的容器与节点管理。</desc>
+  <defs>
+    <linearGradient id="tile" x1="24" y1="12" x2="232" y2="252" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2889FF"/>
+      <stop offset="0.55" stop-color="#0967F2"/>
+      <stop offset="1" stop-color="#0744BF"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="128" y1="8" x2="128" y2="248" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#FFF" stop-opacity="0.04"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="58" fill="url(#tile)"/>
+  <rect x="9" y="9" width="238" height="238" rx="57" stroke="url(#edge)" stroke-width="2"/>
+  <path d="M136 144L176 184" stroke="#71F5D2" stroke-width="14" stroke-linecap="round"/>
+  <path d="M80 184V74H134C158 74 176 89 176 110C176 131 158 146 134 146H80" stroke="#FFF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="176" cy="184" r="17" fill="#71F5D2"/>
+</svg>

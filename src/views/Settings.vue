@@ -70,7 +70,7 @@
             >
               <img
                 :src="logo || '/logo.png'"
-                alt="Current Logo"
+                alt="当前标志"
                 class="logo-image"
               />
               <div class="upload-overlay">

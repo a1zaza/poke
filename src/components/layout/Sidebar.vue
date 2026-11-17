@@ -1,7 +1,7 @@
 <template>
   <aside class="sidebar">
     <div class="brand">
-      <img :src="info.logo" alt="Poke Logo" width="32" height="32" class="logo" />
+      <img :src="info.logo" alt="Poke 标志" width="32" height="32" class="logo" />
       <div class="brand-info">
         <span class="brand-text">Poke</span>
       </div>

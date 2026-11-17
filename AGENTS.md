@@ -45,4 +45,5 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 - 镜像采用多阶段构建，前端经 `embed_frontend` 标签编入 Go，不在工作区导出中间产物。
 - 镜像打包测试可执行 `docker build --progress=plain -t poke:build-test .`；Dockerfile 内完成前端编译、嵌入资源测试、go vet 与 Go 编译。2026-11-17 已在 linux/amd64 构建成功，arm64 由工作流另行验证。
 - 仓库使用系统字体，不分发本地字体文件。不要提交个人配置、真实凭据、运行数据或私有基础设施地址。
+- 默认 Logo 的矢量源为 `public/logo.svg`，蓝色 P 与薄荷绿节点构成标志；修改后同步导出透明背景的 512×512 PNG 到 `public/logo.png` 和 `public/default-logo.png`。页面与 favicon 继续使用动态 `/logo.png`，保留用户上传 Logo 的能力；README 使用 SVG。
 - 提交前在 `docs/changelogs/YYYY-MM.md` 记录带时间戳的变更；未明确要求时不执行 Git 操作。
