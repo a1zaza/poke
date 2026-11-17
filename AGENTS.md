@@ -21,6 +21,7 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 
 # 常见问题
 
+- 2026-11-17 已修复 Compose 文件符号链接越界及同站异源修改请求问题，依赖已更新；登录限速按用户要求暂不处理。
 - 配置或节点 JSON 损坏时拒绝启动，应从备份修复，不得用空状态覆盖。
 - Controller 和各 Agent 使用独立的持久化目录，角色目录的 `state.lock` 防止多实例并写。
 - 默认配置目录为 `/poke`；无法创建时回退到当前工作目录下的 `data`。这些文件不得提交。
@@ -29,13 +30,19 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 
 # 其他备忘
 
+- 镜像地址为 `ghcr.io/a1zaza/poke`；`.github/workflows/docker.yml` 原生构建 amd64/arm64 后合并发布。main 更新 latest，版本标签发布对应版本，PR 仅构建。工作流使用 GITHUB_TOKEN，关闭构建记录 artifact 上传，禁止改回跨任务 artifact 传递。
+
 - 持久化仅使用 JSON，不引入数据库依赖。私有文件为 `0600`，采用同目录临时文件、文件同步和原子重命名。
 - 每个节点使用独立身份；Controller 只保存凭据摘要。注册凭据有效期为 10 分钟，普通重启复用已保存身份。
 - 修改任务按任务 ID 去重；执行中断或取消后结果不明时，不得自动重放。
 - 仓库凭据按节点授权和操作上下文隔离。Compose 使用临时私有 `DOCKER_CONFIG`，结束及 Agent 重启时清理。
 - 所有项目文件操作必须经过 `server/api/project_path.go` 的路径边界校验；项目名最长 64 位，允许 ASCII 字母、数字、点、下划线和连字符，首字符为字母或数字。
+- Compose 内容必须通过 `server/api/project_file.go` 访问：目录句柄限定边界、读取拒绝符号链接，写入使用独占临时文件和原子替换；不可恢复为直接按路径 `ReadFile` / `WriteFile`。
+- `os.Root.OpenFile` 可能自行解析目录内符号链接；需要拒绝最终文件链接时，使用固定文件名和目录句柄调用 `openat(O_NOFOLLOW)`，保留目录内链接回归测试。
+- 后端要求 Go 1.26.11 或更新补丁版本。Web API 使用标准库 `CrossOriginProtection`，包括登录、退出接口；反向代理和 Vite `/api` 代理必须保留原 Host、Origin 和 Sec-Fetch-Site。无浏览器来源头的 Agent 请求仍依靠节点认证。
 - 管理员会话有效期 24 小时，签名密钥每次启动随机生成；HTTPS 入口需传递 `X-Forwarded-Proto: https` 或设置 `COOKIE_SECURE=true`。
 - 密码使用 Argon2id；保留现有密码验证和迁移测试，避免清理文档时改变认证行为。
 - 镜像采用多阶段构建，前端经 `embed_frontend` 标签编入 Go，不在工作区导出中间产物。
+- 镜像打包测试可执行 `docker build --progress=plain -t poke:build-test .`；Dockerfile 内完成前端编译、嵌入资源测试、go vet 与 Go 编译。2026-11-17 已在 linux/amd64 构建成功，arm64 由工作流另行验证。
 - 仓库使用系统字体，不分发本地字体文件。不要提交个人配置、真实凭据、运行数据或私有基础设施地址。
 - 提交前在 `docs/changelogs/YYYY-MM.md` 记录带时间戳的变更；未明确要求时不执行 Git 操作。

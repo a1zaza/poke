@@ -19,7 +19,8 @@ export default defineConfig({
       },
       '/api': {
         target: 'http://localhost:3001',
-        changeOrigin: true,
+        // 保留浏览器访问的 Host，供后端校验请求来源。
+        changeOrigin: false,
         ws: true
       },
       '/ws': {

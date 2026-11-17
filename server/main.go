@@ -77,6 +77,7 @@ func run() error {
 	}
 	e := echo.New()
 	e.Use(middleware.Recover())
+	e.Use(api.BrowserRequestProtection())
 	e.Use(middleware.BodyLimit("1M"))
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{Format: "${time_rfc3339} | ${status} | ${latency_human} | ${method} | ${path}\n"}))
 	e.GET("/health", func(c echo.Context) error { return c.String(200, "OK") })

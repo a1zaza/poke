@@ -15,6 +15,22 @@ import (
 
 const sessionCookieName = "poke_session"
 
+// BrowserRequestProtection also protects login/logout. Agent requests do not
+// carry browser Origin/Fetch Metadata headers and still require node credentials.
+func BrowserRequestProtection() echo.MiddlewareFunc {
+	protection := http.NewCrossOriginProtection()
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			if strings.HasPrefix(c.Request().URL.Path, "/api/") {
+				if err := protection.Check(c.Request()); err != nil {
+					return c.JSON(http.StatusForbidden, map[string]string{"error": "不允许跨源修改请求"})
+				}
+			}
+			return next(c)
+		}
+	}
+}
+
 func LoginRateLimiter() echo.MiddlewareFunc {
 	store := middleware.NewRateLimiterMemoryStoreWithConfig(middleware.RateLimiterMemoryStoreConfig{
 		Rate:      5.0 / 60.0,

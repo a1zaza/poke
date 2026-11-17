@@ -2,7 +2,7 @@ name: poke-controller
 
 services:
   controller:
-    image: ${POKE_IMAGE:?}
+    image: ${POKE_IMAGE:-ghcr.io/a1zaza/poke:latest}
     init: true
     restart: unless-stopped
     environment:

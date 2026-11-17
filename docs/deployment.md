@@ -2,6 +2,8 @@
 
 Agent 主动连接 Controller，节点身份、配置和任务以 JSON 持久化。
 
+管理页面和 API 应通过同一个来源访问。反向代理必须保留浏览器访问的 Host（包括非默认端口），并保留 Origin、Sec-Fetch-Site 请求头；否则修改请求可能被跨源防护拒绝。不要通过信任任意来源来绕过此防护。
+
 ## 运行模式
 
 | 环境变量 | 含义 |
@@ -19,7 +21,7 @@ Agent 主动连接 Controller，节点身份、配置和任务以 JSON 持久化
 
 ## 首次接入
 
-仓库提供两份独立 Compose 文件：主节点使用根目录 `compose.yaml`，各从节点使用 `compose.agent.yaml`。两端分别复制 `.env.example` 为本机 `.env`，将 `POKE_IMAGE` 设置为自己的 Poke 镜像地址；模板中的域名和镜像标签为占位示例。
+仓库提供两份独立 Compose 文件：主节点使用根目录 `compose.yaml`，各从节点使用 `compose.agent.yaml`。两端分别复制 `.env.example` 为本机 `.env`，默认使用 `ghcr.io/a1zaza/poke:latest`；可将 `POKE_IMAGE` 设置为固定版本，例如 `ghcr.io/a1zaza/poke:1.0.0`。Controller 域名需替换为实际地址。
 
 主节点配置镜像、端口及 HTTPS 入口后，由部署者执行：
 

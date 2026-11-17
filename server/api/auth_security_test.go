@@ -45,3 +45,38 @@ func TestLoginRateLimiter(t *testing.T) {
 		}
 	}
 }
+
+func TestBrowserRequestProtection(t *testing.T) {
+	for _, tt := range []struct {
+		name, method, origin, site string
+		want                       int
+	}{
+		{"same origin", "POST", "https://controller.example.com", "same-origin", 204},
+		{"origin fallback", "POST", "https://controller.example.com", "", 204},
+		{"sibling domain", "POST", "https://other.example.com", "same-site", 403},
+		{"cross site", "DELETE", "https://evil.invalid", "cross-site", 403},
+		{"legacy browser", "PUT", "https://evil.invalid", "", 403},
+		{"null origin", "POST", "null", "", 403},
+		{"different port", "POST", "https://controller.example.com:8443", "", 403},
+		{"read", "GET", "https://evil.invalid", "cross-site", 204},
+		{"machine request", "POST", "", "", 204},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			e := echo.New()
+			e.Use(BrowserRequestProtection())
+			called := false
+			e.Add(tt.method, "/api/test", func(c echo.Context) error {
+				called = true
+				return c.NoContent(204)
+			})
+			req := httptest.NewRequest(tt.method, "https://controller.example.com/api/test", nil)
+			req.Header.Set("Origin", tt.origin)
+			req.Header.Set("Sec-Fetch-Site", tt.site)
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+			if rec.Code != tt.want || called != (tt.want == 204) {
+				t.Fatalf("status=%d handler called=%v, want %d", rec.Code, called, tt.want)
+			}
+		})
+	}
+}

@@ -23,7 +23,7 @@ Controller 默认不管理本机 Docker；可通过 `POKE_LOCAL_ENABLED=true` �
 
 ## 部署
 
-复制 `.env.example` 为本机 `.env`，设置 `POKE_IMAGE`。使用包含当前代码的镜像；模板中的镜像地址和域名均为占位示例。
+默认镜像为 `ghcr.io/a1zaza/poke:latest`，支持 `linux/amd64` 和 `linux/arm64`。复制 `.env.example` 为本机 `.env`；可用 `POKE_IMAGE` 指定版本，例如 `ghcr.io/a1zaza/poke:1.0.0`。Controller 域名仍需按实际部署填写。
 
 主节点使用 [compose.yaml](compose.yaml)：
 
@@ -40,6 +40,12 @@ docker compose -f compose.agent.yaml up -d
 默认 Web 端口为 `80`。首次启动 Web 服务时，随机管理员密码会输出到服务日志。Agent 挂载 `/poke:/poke` 和 Docker socket，项目、身份、任务及注册材料统一保存在 `/poke` 下。
 
 完整的环境变量、HTTPS 设置、目录布局和备份方法见 [部署说明](docs/deployment.md)。
+
+## 镜像发布
+
+[GitHub Actions 工作流](.github/workflows/docker.yml) 在推送 `main` 时更新 `latest`；推送 `v1.0.0` 这样的标签时发布对应版本。PR 仅验证构建。Controller、Agent 和本机模式共用同一镜像。
+
+标签规则、GHCR 权限及手动发布说明见 [开发说明](docs/development.md#自动发布)。
 
 ## 本地开发
 

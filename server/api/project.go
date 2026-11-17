@@ -216,8 +216,7 @@ func (h *Handler) GetProject(c echo.Context) error {
 
 	// Read compose content if controlled
 	if project.IsControlled {
-		composePath := filepath.Join(project.WorkingDir, "docker-compose.yml")
-		content, err := os.ReadFile(composePath)
+		content, err := readProjectCompose(managedProjectsRoot, project.WorkingDir)
 		if err == nil {
 			project.ComposeContent = string(content)
 		}
@@ -262,8 +261,7 @@ func (h *Handler) CreateProject(c echo.Context) error {
 		}
 	}()
 
-	composeFile := filepath.Join(projectDir, "docker-compose.yml")
-	if err := os.WriteFile(composeFile, []byte(req.Content), 0644); err != nil {
+	if err := writeProjectCompose(managedProjectsRoot, projectDir, []byte(req.Content)); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to write compose file: " + err.Error()})
 	}
 
@@ -394,8 +392,7 @@ func (h *Handler) UpdateProject(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Project is not managed"})
 	}
 
-	composeFile := filepath.Join(projectDir, "docker-compose.yml")
-	if err := os.WriteFile(composeFile, []byte(req.Content), 0644); err != nil {
+	if err := writeProjectCompose(managedProjectsRoot, projectDir, []byte(req.Content)); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to write compose file"})
 	}
 

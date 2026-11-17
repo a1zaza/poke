@@ -9,7 +9,7 @@ COPY public ./public
 COPY src ./src
 RUN npm run build
 
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS backend
+FROM --platform=$BUILDPLATFORM golang:1.26.11-alpine AS backend
 WORKDIR /src/server
 COPY server/go.mod server/go.sum ./
 RUN go mod download
