@@ -39,6 +39,7 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 
 - 持久化仅使用 JSON，不引入数据库依赖。私有文件为 `0600`，采用同目录临时文件、文件同步和原子重命名。
 - 每个节点使用独立身份；Controller 只保存凭据摘要。注册凭据有效期为 10 分钟，普通重启复用已保存身份。
+- Agent 的 HTTP Transport 与 WebSocket Dialer 必须使用独立克隆的 TLS 配置；HTTP 可协商 HTTP/2，WebSocket 的 ALPN 仅允许 `http/1.1`。共享配置会使 HTTP 注册写入的 `h2` 污染控制和数据通道，触发 malformed HTTP response；保留 HTTP/2 注册后的双通道回归测试。
 - 修改任务按任务 ID 去重；执行中断或取消后结果不明时，不得自动重放。
 - 仓库凭据按节点授权和操作上下文隔离。Compose 使用临时私有 `DOCKER_CONFIG`，结束及 Agent 重启时清理。
 - 所有项目文件操作必须经过 `server/api/project_path.go` 的路径边界校验；项目名最长 64 位，允许 ASCII 字母、数字、点、下划线和连字符，首字符为字母或数字。

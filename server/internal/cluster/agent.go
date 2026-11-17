@@ -75,8 +75,23 @@ func NewAgent(store *Store, executor Executor, opts AgentOptions) (*Agent, error
 		tlsConfig.RootCAs = pool
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = tlsConfig
-	a := &Agent{Store: store, Executor: executor, Options: opts, base: u, running: map[string]context.CancelFunc{}, workers: make(chan struct{}, 8), client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, dialer: &websocket.Dialer{Proxy: http.ProxyFromEnvironment, TLSClientConfig: tlsConfig, HandshakeTimeout: 10 * time.Second}}
+	transport.TLSClientConfig = tlsConfig.Clone()
+	// net/http may add h2 to its TLS configuration. Gorilla's Upgrade handshake
+	// requires HTTP/1.1, so its configuration must remain independent.
+	websocketTLS := tlsConfig.Clone()
+	websocketTLS.NextProtos = []string{"http/1.1"}
+	a := &Agent{
+		Store: store, Executor: executor, Options: opts, base: u,
+		running: map[string]context.CancelFunc{}, workers: make(chan struct{}, 8),
+		client: &http.Client{
+			Transport: transport, Timeout: 10 * time.Second,
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
+		dialer: &websocket.Dialer{
+			Proxy: http.ProxyFromEnvironment, TLSClientConfig: websocketTLS,
+			HandshakeTimeout: 10 * time.Second,
+		},
+	}
 	name := filepath.Join(store.dir, "identity.json")
 	if err = readJSON(name, &a.identity); err != nil && !os.IsNotExist(err) {
 		return nil, err
