@@ -431,7 +431,7 @@ func (c *Controller) dispatch(ctx echo.Context) error {
 			}
 		}
 	}
-	if req.Method != "GET" {
+	if !isReadOnlyRequest(req) {
 		c.mu.Lock()
 		s := c.sessions[node]
 		ready := s != nil && s.ready

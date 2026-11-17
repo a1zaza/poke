@@ -108,7 +108,25 @@
   flex: none;
 }
 .update-badge {
-  margin-left: 6px;
+  flex: none;
+  white-space: nowrap;
+}
+button.update-badge {
+  min-height: 0;
+  padding: 2px 6px;
+  line-height: 1.5;
+}
+.container-image-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.container-image-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .update-badge.available {
   color: var(--blue);

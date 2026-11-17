@@ -9,6 +9,20 @@
         placeholder="搜索容器名称、镜像或 ID"
         @refresh="fetchContainers"
       />
+      <Teleport v-if="mounted" to="#header-action"
+        ><button
+          class="secondary"
+          :disabled="updates.checking.value || !containers.length"
+          @click="
+            updates.sync(
+              containers.map((container) => container.Image),
+              true
+            )
+          "
+        >
+          <RefreshCw :size="14" :class="{ spin: updates.checking.value }" />检查更新
+        </button></Teleport
+      >
       <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
       <div class="table-container">
         <table class="table">
@@ -57,35 +71,43 @@
                   >
                 </router-link>
               </td>
-              <td :title="container.Image">
-                {{ container.Image }}
-
-                <span v-if="getUpdateStatus(container.Id) === 'checking'" class="update-badge checking"
-                  >...</span
-                >
-                <button
-                  v-if="getUpdateStatus(container.Id) === 'available'"
-                  class="update-badge available"
-                  title="点击更新容器"
-                  @click="promptUpdate(container)"
-                >
-                  有更新
-                </button>
-                <span v-if="getUpdateStatus(container.Id) === 'updating'" class="update-badge checking"
-                  >更新中</span
-                >
-                <span
-                  v-if="getUpdateStatus(container.Id) === 'latest'"
-                  class="update-badge latest"
-                  title="已是最新版本"
-                  >最新</span
-                >
-                <span
-                  v-if="getUpdateStatus(container.Id) === 'error'"
-                  class="update-badge error"
-                  :title="getUpdateError(container.Id) || '检测失败'"
-                  >失败</span
-                >
+              <td>
+                <div class="container-image-cell">
+                  <span class="container-image-name" :title="container.Image">{{ container.Image }}</span>
+                  <span v-if="updatingIds.has(container.Id)" class="update-badge checking">更新中</span>
+                  <span
+                    v-else-if="!canCheckImage(container.Image)"
+                    class="update-badge checking"
+                    title="镜像按 ID 或摘要固定，不检测标签更新"
+                    >已固定</span
+                  >
+                  <span
+                    v-else-if="updates.states.value[container.Image]?.status === 'checking'"
+                    class="update-badge checking"
+                    >检测中</span
+                  >
+                  <button
+                    v-else-if="updates.states.value[container.Image]?.status === 'available'"
+                    type="button"
+                    class="update-badge available"
+                    title="更新此容器"
+                    @click="promptUpdate(container)"
+                  >
+                    有更新
+                  </button>
+                  <span
+                    v-else-if="updates.states.value[container.Image]?.status === 'latest'"
+                    class="update-badge latest"
+                    title="该镜像标签暂无更新"
+                    >最新</span
+                  >
+                  <span
+                    v-else-if="updates.states.value[container.Image]?.status === 'error'"
+                    class="update-badge error"
+                    :title="updates.states.value[container.Image]?.error"
+                    >检测失败</span
+                  >
+                </div>
               </td>
               <td>
                 <span class="status" :class="getStatusClass(container.State)"></span>
@@ -194,11 +216,12 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import ResourceToolbar from '@/components/ui/ResourceToolbar.vue';
+import { canCheckImage, useImageUpdates } from '@/composables/useImageUpdates';
 import { useResourceFilter } from '@/composables/useResourceFilter';
 import DashboardLayout from '@/layouts/DashboardLayout.vue';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
 import { useToastStore } from '@/stores/toast';
-import { Play, Square, RotateCw, Trash2, Eye, FileText, Terminal } from 'lucide-vue-next';
+import { Play, Square, RotateCw, Trash2, Eye, FileText, Terminal, RefreshCw } from 'lucide-vue-next';
 import { request } from '@/utils/request';
 
 interface Container {
@@ -223,7 +246,12 @@ const { search, filtered } = useResourceFilter(containers, (item) => [
 ]);
 const error = ref('');
 let refreshing = false;
-const updateStates = ref<Record<string, { status: string; error?: string }>>({});
+const mounted = ref(false);
+const updatingIds = ref(new Set<string>());
+const updates = useImageUpdates((image, signal) =>
+  request('/api/images/check-update', { method: 'POST', body: JSON.stringify({ image }), signal })
+);
+let refreshAfterUpdate: ReturnType<typeof setTimeout> | undefined;
 
 const loading = ref(true);
 const actionLoading = ref<string | null>(null);
@@ -244,7 +272,7 @@ const fetchContainers = async () => {
     if (Array.isArray(data)) {
       const newContainers = data.sort((a, b) => a.Id.localeCompare(b.Id));
       containers.value = newContainers;
-      checkUpdates();
+      updates.sync(newContainers.map((container) => container.Image));
     }
     error.value = '';
   } catch (err) {
@@ -256,12 +284,15 @@ const fetchContainers = async () => {
 };
 
 onMounted(() => {
+  mounted.value = true;
   fetchContainers();
   intervalId = window.setInterval(fetchContainers, 3000);
 });
 
 onUnmounted(() => {
   clearInterval(intervalId);
+  if (refreshAfterUpdate) clearTimeout(refreshAfterUpdate);
+  updates.stop();
 });
 
 const getContainerName = (c: Container) => {
@@ -347,7 +378,8 @@ const confirmUpdate = async () => {
   if (!updateContainer.value) return;
 
   const id = updateContainer.value.Id;
-  updateStates.value[id] = { status: 'updating' };
+  const image = updateContainer.value.Image;
+  updatingIds.value.add(id);
   updateContainer.value = null;
 
   try {
@@ -357,7 +389,8 @@ const confirmUpdate = async () => {
 
     toastStore.addToast(`容器已开始更新`, 'success');
     // 等待容器状态刷新。
-    setTimeout(fetchContainers, 2000);
+    updates.invalidate(image);
+    refreshAfterUpdate = setTimeout(fetchContainers, 2000);
   } catch (err: any) {
     if (err.code === 'NOT_COMPOSE_MANAGED') {
       unmanagedMessage.value =
@@ -366,43 +399,8 @@ const confirmUpdate = async () => {
     } else {
       toastStore.addToast(`更新失败: ${err.message}`, 'error');
     }
-    updateStates.value[id] = { status: 'available' }; // Revert
-  }
-};
-
-const getUpdateStatus = (id: string) => updateStates.value[id]?.status;
-const getUpdateError = (id: string) => updateStates.value[id]?.error;
-
-const checkUpdates = async () => {
-  for (const c of containers.value) {
-    if (updateStates.value[c.Id]) continue;
-
-    updateStates.value[c.Id] = { status: 'checking' };
-
-    request('/api/images/check-update', {
-      method: 'POST',
-      body: JSON.stringify({ image: c.Image })
-    })
-      .then((res: any) => {
-        if (res.error) {
-          updateStates.value[c.Id] = { status: 'error', error: res.error };
-        } else if (res.hasUpdate) {
-          updateStates.value[c.Id] = { status: 'available' };
-        } else {
-          updateStates.value[c.Id] = { status: 'latest' };
-        }
-      })
-      .catch((err: any) => {
-        updateStates.value[c.Id] = { status: 'error', error: err.message || 'Network error' };
-      });
-  }
-
-  // Cleanup old states
-  const currentIds = new Set(containers.value.map((c) => c.Id));
-  for (const id in updateStates.value) {
-    if (!currentIds.has(id)) {
-      delete updateStates.value[id];
-    }
+  } finally {
+    updatingIds.value.delete(id);
   }
 };
 </script>

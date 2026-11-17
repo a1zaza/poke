@@ -16,6 +16,8 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 - 前端检查使用 `npm run typecheck` 和 `npm test`；后端检查使用 `go test -race ./...`、`go vet ./...` 和 `gofmt -l .`。
 - 前端界面参照相邻 `v2way` 的深灰、蓝色强调与紧凑布局，保留 Vue 3；相邻项目仅只读参考，不复制其私有数据。内容区最大宽度 1600px，720px 以下使用抽屉导航，保留浅色主题。
 - 公共设计变量位于 `src/style.css`，资源列表及详情样式分别位于 `src/styles/resources.css`、`src/styles/details.css`。列表搜索复用 `ResourceToolbar` 与 `useResourceFilter`，仅在本地过滤，不改变 API 或节点作用域。
+- 详情页加载和错误占位使用 `.detail-state`，禁止全局 `.loading, .error` 规则，避免污染更新标签的 `.update-badge.error`。
+- 容器更新检测通过 `useImageUpdates` 按镜像去重、最多并发 2 个；成功结果复用 5 分钟、错误冷却 60 秒，429 后暂停队列 30 秒，离开页面取消请求。列表刷新不强制重检，导航栏“检查更新”可显式重检。
 - 页面级操作（包括资源刷新）统一传送至顶部导航栏右侧的 `#header-action`；内容标题区不放操作按钮，列表内保留搜索与计数，行级操作仍随资源展示。窄屏操作区允许换行。
 - Modal 保留焦点约束、Escape 关闭和关闭后焦点恢复；Select 使用传送到 body 的视口定位列表，支持方向键、Home/End、Enter 和 Escape，不恢复为不可聚焦的 div 触发器。
 - 协议集成测试使用临时回环端口，不依赖真实 Docker；受限环境需要允许测试绑定端口。
@@ -42,6 +44,7 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 - 每个节点使用独立身份；Controller 只保存凭据摘要。注册凭据有效期为 10 分钟，普通重启复用已保存身份。
 - Agent 的 HTTP Transport 与 WebSocket Dialer 必须使用独立克隆的 TLS 配置；HTTP 可协商 HTTP/2，WebSocket 的 ALPN 仅允许 `http/1.1`。共享配置会使 HTTP 注册写入的 `h2` 污染控制和数据通道，触发 malformed HTTP response；保留 HTTP/2 注册后的双通道回归测试。
 - 修改任务按任务 ID 去重；执行中断或取消后结果不明时，不得自动重放。
+- `POST /api/images/check-update` 是只读检测，Controller 保留仓库授权并通过查询数据通道执行，不创建持久化修改任务；拉取、清理、容器更新等操作继续走原任务队列及限额。
 - 仓库凭据按节点授权和操作上下文隔离。Compose 使用临时私有 `DOCKER_CONFIG`，结束及 Agent 重启时清理。
 - 所有项目文件操作必须经过 `server/api/project_path.go` 的路径边界校验；项目名最长 64 位，允许 ASCII 字母、数字、点、下划线和连字符，首字符为字母或数字。
 - Compose 内容必须通过 `server/api/project_file.go` 访问：目录句柄限定边界、读取拒绝符号链接，写入使用独占临时文件和原子替换；不可恢复为直接按路径 `ReadFile` / `WriteFile`。

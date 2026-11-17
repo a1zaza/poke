@@ -1,7 +1,7 @@
 <template>
   <DashboardLayout>
-    <div v-if="loading && !container" class="loading">加载详情中...</div>
-    <div v-else-if="!container" class="error">未找到容器信息</div>
+    <div v-if="loading && !container" class="detail-state">加载详情中...</div>
+    <div v-else-if="!container" class="detail-state error-state">未找到容器信息</div>
 
     <div v-else class="container-detail">
       <Teleport to="#header-action" v-if="mounted">

@@ -1,7 +1,7 @@
 <template>
   <DashboardLayout>
-    <div v-if="loading && !project" class="loading">加载项目详情中...</div>
-    <div v-else-if="!project" class="error">未找到项目信息</div>
+    <div v-if="loading && !project" class="detail-state">加载项目详情中...</div>
+    <div v-else-if="!project" class="detail-state error-state">未找到项目信息</div>
 
     <div v-else class="project-detail">
       <Teleport to="#header-action" v-if="mounted">
@@ -11,7 +11,12 @@
               <component :is="isEditing ? X : FileEdit" :size="14" style="margin-right: 4px" />
               {{ isEditing ? '取消' : '编辑配置' }}
             </button>
-            <button v-if="isEditing" class="btn btn-save" @click="handleSaveCompose" :disabled="actionLoading">
+            <button
+              v-if="isEditing"
+              class="btn btn-save"
+              @click="handleSaveCompose"
+              :disabled="actionLoading"
+            >
               <Save :size="14" />
               {{ actionLoading ? '正在部署…' : '保存并重新部署' }}
             </button>

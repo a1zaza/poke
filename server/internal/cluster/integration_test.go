@@ -29,7 +29,7 @@ type testExecutor struct {
 
 func (e *testExecutor) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	if r.Method != "GET" {
+	if r.Method != "GET" && r.URL.Path != "/api/images/check-update" {
 		e.calls.Add(1)
 	}
 	if r.URL.Query().Get("wait") == "true" {
@@ -154,6 +154,15 @@ func TestAgentOutboundLifecycle(t *testing.T) {
 	}
 	if !bytes.Contains(data, []byte(`"cookie":""`)) {
 		t.Fatal("browser session sent to Agent")
+	}
+	// A read-only POST must retain scoped credentials without creating a task.
+	beforeChecks := len(controllerStore.Tasks())
+	status, data = browserRequest(t, server.Client(), "POST", server.URL+"/api/nodes/"+n.ID+"/api/images/check-update", `{"image":"registry.example/team/app"}`)
+	if status != 200 || !bytes.Contains(data, []byte(`"credential_available":true`)) {
+		t.Fatalf("update check: %d %s", status, data)
+	}
+	if len(controllerStore.Tasks()) != beforeChecks || len(agentStore.Tasks()) != 0 {
+		t.Fatal("read-only update check created a mutation task")
 	}
 	status, data = browserRequest(t, server.Client(), "POST", server.URL+"/api/nodes/"+n.ID+"/api/images/pull", `{"image":"registry.example/team/app"}`)
 	if status != 202 {

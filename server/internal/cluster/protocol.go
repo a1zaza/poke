@@ -52,6 +52,19 @@ type Frame struct {
 var resource = regexp.MustCompile(`^/api/(?:containers(?:/[^/]+(?:/(?:start|stop|restart|update|logs))?)?|images(?:/(?:pull|check-update|prune|[^/]+))?|networks(?:/[^/]+)?|volumes(?:/[^/]+)?|projects(?:/[^/]+(?:/action)?)?|system/(?:info|events))$`)
 var terminal = regexp.MustCompile(`^/ws/containers/[^/]+/exec$`)
 
+// Update checks use POST for their body, but do not mutate Docker resources.
+// Keep them out of the persistent mutation task queue.
+func isReadOnlyRequest(r *Request) bool {
+	if r == nil {
+		return false
+	}
+	if r.Method == http.MethodGet {
+		return true
+	}
+	u, err := url.ParseRequestURI(r.Path)
+	return err == nil && r.Method == http.MethodPost && u.Path == "/api/images/check-update"
+}
+
 func ValidRequest(r *Request, exec bool) bool {
 	if r == nil || len(r.Body) > MaxBody || len(r.Path) > 8192 {
 		return false

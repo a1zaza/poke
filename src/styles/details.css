@@ -224,8 +224,7 @@ button.btn-edit {
 .project-new code {
   color: var(--blue);
 }
-.loading,
-.error {
+.detail-state {
   padding: 48px 24px;
   text-align: center;
   color: var(--system-gray);
