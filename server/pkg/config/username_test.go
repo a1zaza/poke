@@ -146,3 +146,29 @@ func TestRenameRollbackOnPersistenceFailure(t *testing.T) {
 		t.Fatal("failed save changed in-memory username")
 	}
 }
+
+func TestChineseUsernameValidationAndLogin(t *testing.T) {
+	for _, name := range []string{"管理员", "运维Admin_01", "中文.用户@主机-1", strings.Repeat("中", 64), strings.Repeat("𠮷", 64)} {
+		if err := ValidateUsername(name); err != nil {
+			t.Fatalf("valid username rejected: %v", err)
+		}
+	}
+	for _, name := range []string{strings.Repeat("中", 65), strings.Repeat("𠮷", 65), "中文 用户", "用户\n名", "用户😀", "_管理员"} {
+		if ValidateUsername(name) == nil {
+			t.Fatal("invalid username accepted")
+		}
+	}
+	useTemporaryConfigStorage(t)
+	captureConfigOutput(t, func() {
+		if err := Initialize(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if err := UpdateConfig(map[string]interface{}{"username": "中文管理员", "password": "fixture-password"}); err != nil {
+		t.Fatal(err)
+	}
+	reloadAccount(t)
+	if GetConfig().Auth.Username != "中文管理员" || !VerifyCredentials("中文管理员", "fixture-password") || VerifyCredentials("管理员", "fixture-password") || VerifyCredentials("admin", "fixture-password") {
+		t.Fatal("Chinese username did not persist or authenticate correctly")
+	}
+}

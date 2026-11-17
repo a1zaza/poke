@@ -45,11 +45,11 @@ type AuthConfig struct {
 
 const DefaultUsername = "admin"
 
-var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.@-]{0,63}$`)
+var usernamePattern = regexp.MustCompile(`^[\p{Han}A-Za-z0-9][\p{Han}A-Za-z0-9_.@-]{0,63}$`)
 
 func ValidateUsername(username string) error {
 	if !usernamePattern.MatchString(username) {
-		return fmt.Errorf("用户名须为 1–64 位，以字母或数字开头，仅支持字母、数字、下划线、点、@ 和连字符")
+		return fmt.Errorf("用户名须为 1–64 个字符，以中文、字母或数字开头，仅支持中文、字母、数字、下划线、点、@ 和连字符")
 	}
 	return nil
 }

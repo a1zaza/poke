@@ -28,7 +28,7 @@
           v-model="username"
           type="text"
           placeholder="默认用户名 admin"
-          maxlength="64"
+          maxlength="128"
           :disabled="loading"
           autocomplete="username"
           required

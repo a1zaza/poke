@@ -54,11 +54,11 @@
           <input
             id="admin-username"
             v-model="username"
-            maxlength="64"
+            maxlength="128"
             autocomplete="username"
             placeholder="admin"
           />
-          <p class="hint">1–64 位，以字母或数字开头，支持字母、数字、下划线、点、@ 和连字符。</p>
+          <p class="hint">1–64 个字符，以中文、字母或数字开头，支持中文、字母、数字、下划线、点、@ 和连字符。</p>
         </div>
         <div class="settings-field">
           <label for="new-password"><Lock :size="14" />管理员密码</label
