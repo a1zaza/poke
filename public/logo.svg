@@ -1,20 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256" fill="none" role="img" aria-labelledby="title desc">
   <title id="title">Poke 标志</title>
-  <desc id="desc">蓝色圆角方块中的白色字母 P，连接一个薄荷绿色节点，代表统一的容器与节点管理。</desc>
+  <desc id="desc">深蓝圆角底上的蓝色立方容器，带有白色终端符号和薄荷绿连接节点，代表容器编排与远程管理。</desc>
   <defs>
-    <linearGradient id="tile" x1="24" y1="12" x2="232" y2="252" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#2889FF"/>
-      <stop offset="0.55" stop-color="#0967F2"/>
-      <stop offset="1" stop-color="#0744BF"/>
+    <linearGradient id="background" x1="24" y1="8" x2="232" y2="248" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#17283E"/>
+      <stop offset="1" stop-color="#0B1424"/>
     </linearGradient>
-    <linearGradient id="edge" x1="128" y1="8" x2="128" y2="248" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFF" stop-opacity="0.32"/>
-      <stop offset="1" stop-color="#FFF" stop-opacity="0.04"/>
+    <linearGradient id="top" x1="78" y1="70" x2="176" y2="126" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8ADFFF"/>
+      <stop offset="1" stop-color="#4DADFF"/>
+    </linearGradient>
+    <linearGradient id="front" x1="58" y1="98" x2="126" y2="214" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3298FF"/>
+      <stop offset="1" stop-color="#1473E6"/>
     </linearGradient>
   </defs>
-  <rect x="8" y="8" width="240" height="240" rx="58" fill="url(#tile)"/>
-  <rect x="9" y="9" width="238" height="238" rx="57" stroke="url(#edge)" stroke-width="2"/>
-  <path d="M136 144L176 184" stroke="#71F5D2" stroke-width="14" stroke-linecap="round"/>
-  <path d="M80 184V74H134C158 74 176 89 176 110C176 131 158 146 134 146H80" stroke="#FFF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="176" cy="184" r="17" fill="#71F5D2"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#background)"/>
+  <rect x="9" y="9" width="238" height="238" rx="55" stroke="#8199BA" stroke-opacity="0.2" stroke-width="2"/>
+  <path d="M126 58L194 98L126 138L58 98L126 58Z" fill="url(#top)"/>
+  <path d="M58 98L126 138V214L58 174V98Z" fill="url(#front)"/>
+  <path d="M194 98L126 138V214L194 174V98Z" fill="#0D57BF"/>
+  <path d="M126 138V214" stroke="#0B1424" stroke-opacity="0.16" stroke-width="2"/>
+  <path d="M78 130L94 151L78 154" stroke="#FFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M105 171L114 176" stroke="#FFF" stroke-width="8" stroke-linecap="round"/>
+  <path d="M162 79L184 66H196" stroke="#71F5D2" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="198" cy="66" r="11" fill="#71F5D2"/>
 </svg>

@@ -1,132 +1,293 @@
+@import './styles/resources.css';
+@import './styles/details.css';
+
+@font-face {
+  font-family: 'Consolas';
+  src: url('./assets/fonts/consolas.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'LXGW WenKai';
+  src: url('./assets/fonts/lxgwzk.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-family: Consolas, 'LXGW WenKai', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --system-blue: #007aff;
-  --system-red: #ff3b30;
-  --system-green: #34c759;
+  --content-max-width: 1600px;
+  --radius: 4px;
+  --system-blue: #007acc;
+  --system-green: #89c695;
+  --system-red: #ef9892;
+  --system-orange: #dbb861;
+  --system-purple: #b9a1de;
 }
-
-/* Dark Theme (Default fallback in case script hasn't run yet) */
 :root,
 [data-theme='dark'] {
-  --background: #000000;
-  --foreground: #ffffff;
-  --system-gray: #8e8e93;
-  --glass-background: rgba(255, 255, 255, 0.03);
-  --glass-border: rgba(255, 255, 255, 0.05);
-  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-  --window-background: rgba(20, 20, 20, 0.6);
-  --window-header: rgba(30, 30, 30, 0.8);
-  --sidebar-background: rgba(40, 40, 40, 0.5);
-  --card-background: rgba(255, 255, 255, 0.03);
-  --card-border: rgba(255, 255, 255, 0.05);
-  --item-hover: rgba(255, 255, 255, 0.05);
-  --input-background: rgba(0, 0, 0, 0.2);
-  --body-bg-gradient: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #000000 100%);
-  --progress-bg: rgba(255, 255, 255, 0.1);
+  color-scheme: dark;
+  --background: #181818;
+  --foreground: #d4d4d4;
+  --system-gray: #96969f;
+  --border: #323236;
+  --surface: #202020;
+  --field: #292929;
+  --blue: #70b6e7;
+  --accent-soft: #27343f;
+  --danger-soft: #3a2929;
+  --glass-background: #202020;
+  --glass-border: var(--border);
+  --glass-shadow: 0 8px 28px #0004;
+  --window-background: #181818;
+  --window-header: #1b1b1b;
+  --sidebar-background: #202020;
+  --card-background: #202020;
+  --card-border: var(--border);
+  --item-hover: #2a2a2e;
+  --input-background: var(--field);
+  --progress-bg: #343438;
+  --body-bg-gradient: #181818;
 }
-
-/* Light Theme */
 [data-theme='light'] {
-  --background: #ffffff;
-  --foreground: #1d1d1f;
-  --system-gray: #6e6e73;
-  --glass-background: #f5f5f7;
-  --glass-border: rgba(0, 0, 0, 0.05);
-  --glass-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
-  --window-background: #ffffff;
-  --window-header: #f8f8fa;
-  --sidebar-background: #f5f5f7;
-  --card-background: #f0f0f2;
-  --card-border: rgba(0, 0, 0, 0.04);
-  --item-hover: rgba(0, 0, 0, 0.05);
-  --input-background: #ecece7;
-  --body-bg-gradient: #ffffff;
-  --progress-bg: #e5e5e7;
+  color-scheme: light;
+  --background: #f2f3f5;
+  --foreground: #293442;
+  --system-gray: #657080;
+  --system-green: #287746;
+  --system-red: #bd3b38;
+  --system-orange: #956715;
+  --system-purple: #7752ad;
+  --border: #dce0e5;
+  --surface: #fff;
+  --field: #f7f8fa;
+  --blue: #096cae;
+  --accent-soft: #e6f0f8;
+  --danger-soft: #fbeceb;
+  --glass-background: #fff;
+  --glass-shadow: 0 8px 28px #24314214;
+  --window-background: #f7f8fa;
+  --window-header: #fff;
+  --sidebar-background: #fff;
+  --card-background: #fff;
+  --item-hover: #edf0f4;
+  --progress-bg: #e4e8ed;
+  --body-bg-gradient: #f2f3f5;
 }
-
 * {
   box-sizing: border-box;
-  padding: 0;
+}
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 320px;
+  height: 100%;
   margin: 0;
 }
-
-html,
-body {
-  max-width: 100vw;
-  overflow: hidden;
-  height: 100vh;
+#app {
+  display: flow-root;
 }
-
+body {
+  color: var(--foreground);
+  background: var(--background);
+}
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+a {
+  color: var(--blue);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
 button,
 input,
 select,
 textarea {
-  font-family: inherit;
-  resize: none;
+  font: inherit;
 }
-
-textarea {
-  resize: none;
-}
-
-body {
+button,
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--field);
   color: var(--foreground);
-  background: var(--body-bg-gradient);
-  background-attachment: fixed;
-  background-size: cover;
-  background-position: center;
+  cursor: pointer;
+  line-height: 1.4;
+  transition:
+    background 0.13s,
+    border-color 0.13s;
 }
-
-body,
-aside,
-main,
-header,
-div,
-section,
-article {
-  transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+button:hover:not(:disabled) {
+  background: var(--item-hover);
 }
-
-a {
-  color: inherit;
-  text-decoration: none;
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
-
+button svg {
+  flex-shrink: 0;
+}
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+input:not([type='checkbox']):not([type='radio']):not([type='file']),
+textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-background);
+  color: var(--foreground);
+  padding: 8px 10px;
+  line-height: 1.5;
+}
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--system-blue);
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--system-gray);
+  opacity: 0.8;
+}
+input:focus-visible,
+textarea:focus-visible {
+  outline: 1px solid var(--system-blue);
+  border-color: var(--system-blue);
+}
+textarea {
+  resize: vertical;
+}
+pre,
+code,
+.monospace {
+  font-family: inherit;
+}
+pre {
+  line-height: 1.8;
+  tab-size: 2;
+}
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+::selection {
+  background: var(--accent-soft);
+  color: var(--foreground);
+}
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: var(--card-border);
-  border-radius: 4px;
+  background: var(--border);
+  border-radius: 8px;
 }
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--system-gray);
+.primary,
+button.btn-submit,
+button.btn-new,
+button.btn-confirm,
+button.btn-save {
+  background: var(--system-blue);
+  color: #fff;
+  border-color: var(--system-blue);
 }
-
-.global-back-btn {
+.primary:hover:not(:disabled),
+button.btn-submit:hover:not(:disabled),
+button.btn-new:hover:not(:disabled),
+button.btn-save:hover:not(:disabled) {
+  background: #1687cc;
+}
+.secondary {
+  background: var(--field);
+  border-color: var(--border);
+}
+.icon-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--system-gray);
   background: transparent;
-  border: 1px solid var(--glass-border);
-  border-radius: 6px;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--foreground);
-  transition: all 0.2s;
+  border-color: transparent;
 }
-
-.global-back-btn:hover {
-  background: var(--item-hover);
-  border-color: var(--card-border);
+.eyebrow {
+  color: var(--system-gray);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+}
+.muted {
+  color: var(--system-gray);
+}
+.inline-error {
+  padding: 12px 14px;
+  border: 1px solid var(--system-red);
+  border-radius: var(--radius);
+  color: var(--system-red);
+  background: var(--danger-soft);
+  overflow-wrap: anywhere;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 720px) {
+  :root {
+    font-size: 13px;
+  }
+  button,
+  .button {
+    min-height: 44px;
+  }
+  .icon-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+  }
+  input:not([type='checkbox']):not([type='radio']):not([type='file']) {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

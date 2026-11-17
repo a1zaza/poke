@@ -10,8 +10,13 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 
 - 使用 `npm ci` 安装前端依赖；Vite 开发端口为 5173，代理后端 3001。
 - 后端开发命令为在 `server` 目录执行 `PORT=3001 go run main.go`；Web 默认端口为 80。
+- 本机管理开发启动需显式设置 `POKE_MODE=standalone PORT=3001 go run .`（在 `server` 目录）；前端使用 `npm run dev -- --port 5173 --strictPort`，防止端口冲突时自动切换而导致代理或来源校验不一致。
+- 查看 Controller 无节点界面时，在 `server` 目录以 `POKE_MODE=controller POKE_LOCAL_ENABLED=false PORT=3001 go run .` 启动；已有节点不自动清空。切换模式会重启后端并使旧会话失效，管理员密码可复用。
 - `POKE_MODE` 支持 `standalone`、`controller`、`agent`。Agent 不启动 HTTP 服务；Controller 默认不依赖本机 Docker。
 - 前端检查使用 `npm run typecheck` 和 `npm test`；后端检查使用 `go test -race ./...`、`go vet ./...` 和 `gofmt -l .`。
+- 前端界面参照相邻 `v2way` 的深灰、蓝色强调与紧凑布局，保留 Vue 3；相邻项目仅只读参考，不复制其私有数据。内容区最大宽度 1600px，720px 以下使用抽屉导航，保留浅色主题。
+- 公共设计变量位于 `src/style.css`，资源列表及详情样式分别位于 `src/styles/resources.css`、`src/styles/details.css`。列表搜索复用 `ResourceToolbar` 与 `useResourceFilter`，仅在本地过滤，不改变 API 或节点作用域。
+- Modal 保留焦点约束、Escape 关闭和关闭后焦点恢复；Select 使用传送到 body 的视口定位列表，支持方向键、Home/End、Enter 和 Escape，不恢复为不可聚焦的 div 触发器。
 - 协议集成测试使用临时回环端口，不依赖真实 Docker；受限环境需要允许测试绑定端口。
 - 不自动执行 Docker 构建、启动开发服务或安装系统软件；按明确任务授权操作。
 
@@ -44,6 +49,7 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 - 密码使用 Argon2id；保留现有密码验证和迁移测试，避免清理文档时改变认证行为。
 - 镜像采用多阶段构建，前端经 `embed_frontend` 标签编入 Go，不在工作区导出中间产物。
 - 镜像打包测试可执行 `docker build --progress=plain -t poke:build-test .`；Dockerfile 内完成前端编译、嵌入资源测试、go vet 与 Go 编译。2026-11-17 已在 linux/amd64 构建成功，arm64 由工作流另行验证。
-- 仓库使用系统字体，不分发本地字体文件。不要提交个人配置、真实凭据、运行数据或私有基础设施地址。
-- 默认 Logo 的矢量源为 `public/logo.svg`，蓝色 P 与薄荷绿节点构成标志；修改后同步导出透明背景的 512×512 PNG 到 `public/logo.png` 和 `public/default-logo.png`。页面与 favicon 继续使用动态 `/logo.png`，保留用户上传 Logo 的能力；README 使用 SVG。
+- 字体按用户要求与 `v2way` 一致：`Consolas, 'LXGW WenKai', monospace`。本地字体位于 `src/assets/fonts/`，通过 `@font-face` 和 `font-display: swap` 加载；表单与代码继承全局字体，xterm 在字体加载后初始化并采用同一字体栈。不要提交个人配置、真实凭据、运行数据或私有基础设施地址。
+- 默认 Logo 的矢量源为 `public/logo.svg`，深蓝圆角底、蓝色立方容器、白色终端符号与薄荷绿连接节点构成标志；修改后同步导出透明背景的 512×512 PNG 到 `public/logo.png` 和 `public/default-logo.png`。页面与 favicon 继续使用动态 `/logo.png`，保留用户上传 Logo 的能力；README 使用 SVG。
+- Vue 模板引用动态 `/logo.png` 时使用绑定属性（如 `:src="'/logo.png'"`），避免 Vite 将静态图片引用改写成 `/logo.png?import` 后被后端 Logo 代理返回 PNG，从而触发模块 MIME 错误。
 - 提交前在 `docs/changelogs/YYYY-MM.md` 记录带时间戳的变更；未明确要求时不执行 Git 操作。

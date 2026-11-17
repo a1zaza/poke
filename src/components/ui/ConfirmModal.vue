@@ -1,19 +1,13 @@
 <template>
   <Modal :isOpen="isOpen" :title="title" :onClose="onClose">
-    <div style="margin-bottom: 12px">{{ message }}</div>
+    <p v-if="message" style="margin-bottom: 12px">{{ message }}</p>
     <slot />
 
     <template #footer>
-        <button class="button cancel" @click="onClose">
-            取消
-        </button>
-        <button
-            class="button confirm"
-            :class="{ danger: isDanger }"
-            @click="handleConfirm"
-        >
-            确认
-        </button>
+      <slot name="footer">
+        <button class="button cancel" @click="onClose">取消</button>
+        <button class="button confirm" :class="{ danger: isDanger }" @click="handleConfirm">确认</button>
+      </slot>
     </template>
   </Modal>
 </template>
@@ -22,50 +16,38 @@
 import Modal from './Modal.vue';
 
 const props = defineProps<{
-    isOpen: boolean;
-    title: string;
-    message?: string;
-    isDanger?: boolean;
-    onConfirm: () => void;
-    onClose: () => void;
+  isOpen: boolean;
+  title: string;
+  message?: string;
+  isDanger?: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
 }>();
 
 const handleConfirm = () => {
-    props.onConfirm();
-    props.onClose();
+  props.onConfirm();
+  props.onClose();
 };
 </script>
 
 <style scoped>
 .button {
-    padding: 6px 16px;
-    border-radius: 6px;
-    border: none;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
+  min-width: 76px;
 }
-
-.cancel {
-    background: var(--item-hover);
-    color: var(--foreground);
-}
-
-.cancel:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
 .confirm {
-    background: var(--system-blue);
-    color: white;
+  background: var(--system-blue);
+  border-color: var(--system-blue);
+  color: #fff;
 }
-
 .confirm:hover {
-    filter: brightness(110%);
+  background: #1687cc;
 }
-
 .confirm.danger {
-    background: var(--system-red);
+  background: #ad3c38;
+  border-color: #ad3c38;
+  color: #fff;
+}
+.confirm.danger:hover {
+  background: #c34843;
 }
 </style>

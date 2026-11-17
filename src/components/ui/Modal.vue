@@ -1,88 +1,159 @@
 <template>
   <Teleport to="body">
-    <div v-if="isOpen" class="overlay" @click.self="onClose">
-      <div class="modal">
-        <div class="header">{{ title }}</div>
-        <div class="body">
-          <slot />
-        </div>
-        <div v-if="$slots.footer" class="footer">
-          <slot name="footer" />
-        </div>
-      </div>
+    <div v-if="isOpen" class="dialog-overlay" @click.self="onClose">
+      <section
+        ref="dialog"
+        class="dialog"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="id"
+        tabindex="-1"
+        @keydown="handleKeydown"
+      >
+        <header class="dialog-header">
+          <h2 :id="id">{{ title }}</h2>
+          <button type="button" class="icon-button" aria-label="关闭弹窗" @click="onClose">
+            <X :size="18" />
+          </button>
+        </header>
+        <div class="dialog-body"><slot /></div>
+        <footer v-if="$slots.footer" class="dialog-footer"><slot name="footer" /></footer>
+      </section>
     </div>
   </Teleport>
 </template>
-
-<script setup lang="ts">
-
-
-const props = defineProps<{
-  isOpen: boolean;
-  title: string;
-  onClose: () => void;
-}>();
+<script lang="ts">
+const openDialogs: string[] = [];
 </script>
-
+<script setup lang="ts">
+import { nextTick, onUnmounted, ref, useId, watch } from 'vue';
+import { X } from 'lucide-vue-next';
+const props = defineProps<{ isOpen: boolean; title: string; onClose: () => void }>();
+const id = useId();
+const dialog = ref<HTMLElement | null>(null);
+let previousFocus: HTMLElement | null = null;
+const release = () => {
+  const index = openDialogs.indexOf(id);
+  if (index >= 0) openDialogs.splice(index, 1);
+  if (previousFocus?.isConnected) previousFocus.focus();
+  previousFocus = null;
+};
+watch(
+  () => props.isOpen,
+  async (open) => {
+    if (!open) {
+      release();
+      return;
+    }
+    previousFocus = document.activeElement as HTMLElement | null;
+    openDialogs.push(id);
+    await nextTick();
+    if (props.isOpen) dialog.value?.focus();
+  },
+  { immediate: true, flush: 'post' }
+);
+const handleKeydown = (event: KeyboardEvent) => {
+  if (openDialogs[openDialogs.length - 1] !== id) return;
+  // A listbox rendered in a portal handles Escape before it reaches the dialog.
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    props.onClose();
+  }
+  if (event.key !== 'Tab' || !dialog.value) return;
+  const elements = [
+    ...dialog.value.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), a[href], input:not(:disabled):not([type="hidden"]), textarea:not(:disabled), [tabindex="0"]'
+    )
+  ].filter((element) => element.getClientRects().length);
+  const first = elements[0],
+    last = elements[elements.length - 1];
+  if (!first) {
+    event.preventDefault();
+    return;
+  }
+  if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.value)) {
+    event.preventDefault();
+    last?.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+};
+onUnmounted(release);
+</script>
 <style scoped>
-.overlay {
+.dialog-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  inset: 0;
+  z-index: 10000;
+  background: #0009;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.dialog {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-
-.modal {
-  background: var(--window-background);
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  width: 500px;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 48px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
   color: var(--foreground);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-  animation: scaleIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+  box-shadow: 0 16px 60px #0005;
+  outline: none;
 }
-
-@keyframes scaleIn {
-  from {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.header {
+.dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
   padding: 16px 20px;
-  border-bottom: 1px solid var(--glass-border);
-  font-weight: 600;
-  font-size: 15px;
+  flex: none;
 }
-
-.body {
-  padding: 24px 20px;
+.dialog-header h2 {
   font-size: 14px;
-  color: var(--foreground);
-  line-height: 1.5;
+  font-weight: 500;
+  padding: 7px 0;
+  overflow-wrap: anywhere;
+  max-height: 20dvh;
+  overflow: auto;
 }
-
-.footer {
-  padding: 16px 20px;
+.dialog-header button {
+  flex: none;
+  margin-right: -6px;
+}
+.dialog-body {
+  padding: 22px 20px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  font-size: 13px;
+  line-height: 1.8;
+  min-height: 0;
+  overflow-wrap: anywhere;
+}
+.dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  background: var(--item-hover);
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  flex: none;
+}
+@media (max-width: 720px) {
+  .dialog-overlay {
+    padding: 12px;
+  }
+  .dialog {
+    max-height: calc(100dvh - 24px);
+  }
+  .dialog-header,
+  .dialog-body,
+  .dialog-footer {
+    padding: 16px;
+  }
 }
 </style>

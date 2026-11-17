@@ -1,134 +1,331 @@
 <template>
-  <div class="layout">
-    <Sidebar />
-    <main class="main">
-      <header class="header">
-        <div class="title-area">
-          <button v-if="headerStore.showBack" @click="router.back()" class="global-back-btn">
-             <ArrowLeft :size="18" />
+  <div class="console-shell" @keydown.esc="closeNavigation">
+    <button
+      v-if="navigationOpen && mobile"
+      class="sidebar-mask"
+      aria-label="关闭导航"
+      @click="closeNavigation"
+    />
+    <Sidebar
+      :open="navigationOpen"
+      :mobile="mobile"
+      :inert="mobile && !navigationOpen"
+      @navigate="closeNavigation"
+    />
+    <main id="main-content" class="console-main" :inert="mobile && navigationOpen">
+      <header class="topbar">
+        <div class="breadcrumb">
+          <button
+            ref="menuButton"
+            class="icon-button mobile-menu"
+            aria-label="打开导航"
+            :aria-expanded="navigationOpen"
+            aria-controls="console-sidebar"
+            @click="openNavigation"
+          >
+            <Menu :size="19" />
           </button>
-          <h3>{{ headerStore.title || defaultTitle }}</h3>
+          <span class="breadcrumb-root">控制台</span><ChevronRight :size="13" />
+          <strong>{{ sectionTitle }}</strong>
         </div>
-        <div class="header-action" id="header-action">
-          <!-- Connect custom header actions via a portal or store later -->
+        <div class="instance-state" :title="currentNode?.name || '在系统设置中添加 Agent 节点'">
+          <span class="status-dot" :class="{ running: currentNode?.status === 'online' }" />
+          <span>{{
+            systemStore.loading && !systemStore.ready
+              ? '正在连接节点'
+              : currentNode?.is_local
+                ? systemStore.info.hostname
+                : currentNode?.name || '未选择节点'
+          }}</span>
         </div>
       </header>
-      <div class="content">
-        <slot />
+      <div class="workspace-content">
+        <section class="page-heading">
+          <div class="page-title">
+            <span class="eyebrow">{{ sectionLabel }}</span>
+            <div class="page-title-row">
+              <button
+                v-if="headerStore.showBack"
+                class="icon-button"
+                aria-label="返回上一页"
+                @click="router.back()"
+              >
+                <ArrowLeft :size="18" />
+              </button>
+              <h1>{{ headerStore.title || defaultTitle }}</h1>
+            </div>
+            <p>{{ description }}</p>
+          </div>
+          <div id="header-action" class="heading-actions" />
+        </section>
+        <div class="page-body"><slot /></div>
+        <footer class="console-footer">
+          <span>Poke · Docker 管理控制台</span
+          ><span>{{ systemStore.info.isController ? '多节点管理' : '本机管理' }}</span>
+        </footer>
       </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import Sidebar from '@/components/layout/Sidebar.vue';
-import { computed } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { ArrowLeft, ChevronRight, Menu } from 'lucide-vue-next';
+import Sidebar from '@/components/layout/Sidebar.vue';
 import { useHeaderStore } from '@/stores/header';
-import { ArrowLeft } from 'lucide-vue-next';
+import { useSystemStore } from '@/stores/system';
 
 const route = useRoute();
 const router = useRouter();
 const headerStore = useHeaderStore();
-
-// Reset header on route change (optional, but good practice if views don't cleanup)
-// But views usually set it onMounted.
-// Let's keep a default computed title as fallback.
-
+const systemStore = useSystemStore();
+const navigationOpen = ref(false);
+const mobile = ref(false);
+const menuButton = ref<HTMLButtonElement | null>(null);
+const currentNode = computed(() => systemStore.nodes.find((node) => node.id === systemStore.currentNodeId));
+const sections: Record<string, { title: string; label: string; description: string }> = {
+  overview: {
+    title: '运行概览',
+    label: '节点概览',
+    description: '了解当前节点的资源使用与 Docker 运行情况。'
+  },
+  containers: {
+    title: '容器管理',
+    label: '容器资源',
+    description: '查看运行状态，管理容器生命周期、日志与终端。'
+  },
+  projects: {
+    title: 'Compose 项目',
+    label: '应用编排',
+    description: '从配置到部署，集中管理你的 Compose 应用。'
+  },
+  images: { title: '镜像管理', label: '镜像资源', description: '拉取、检查和清理当前节点的容器镜像。' },
+  networks: { title: '网络管理', label: '网络资源', description: '查看 Docker 网络、驱动及子网配置。' },
+  volumes: { title: '存储卷管理', label: '存储资源', description: '查看持久化数据卷及其挂载信息。' },
+  settings: { title: '系统设置', label: '实例管理', description: '管理实例信息、访问凭据与 Agent 节点。' },
+  logs: { title: '系统日志', label: '运行记录', description: '查看实例的运行记录与事件。' }
+};
+const section = computed(() => sections[route.path.split('/')[1] || 'overview'] || sections.overview!);
+const sectionTitle = computed(() => section.value.title);
+const sectionLabel = computed(() => section.value.label);
+const description = computed(() => section.value.description);
 const defaultTitle = computed(() => {
-    const path = route.path;
-    const parts = path.split('/').filter(Boolean);
-
-    if (path === '/' || path === '/containers') return '容器';
-    if (path === '/overview') return '概览';
-    if (path === '/projects') return '项目';
-    if (path === '/images') return '镜像';
-    if (path === '/networks') return '网络';
-    if (path === '/volumes') return '存储卷';
-    if (path === '/settings') return '设置';
-
-    if (parts[0] === 'projects' && parts[1] === 'new') return '新建项目';
-
-    if (parts[0] === 'containers' && parts[1]) {
-        const id = parts[1].substring(0, 12);
-        if (parts[2] === 'logs') return `${id} - 日志查看器`;
-        if (parts[2] === 'exec') return `${id} - 终端`;
-        return `${id} - 容器详情`;
-    }
-
-    if (parts[0] === 'projects' && parts[1]) {
-        return `${decodeURIComponent(parts[1])}`;
-    }
-
-    return 'Poke';
+  const parts = route.path.split('/').filter(Boolean);
+  if (parts[0] === 'projects' && parts[1] === 'new') return '新建 Compose 项目';
+  if (parts[0] === 'projects' && parts[1]) return parts[1];
+  if (parts[0] === 'containers' && parts[1]) {
+    return `${parts[1].slice(0, 12)} · ${parts[2] === 'logs' ? '容器日志' : parts[2] === 'exec' ? '交互终端' : '容器详情'}`;
+  }
+  return sectionTitle.value;
 });
+const closeNavigation = () => {
+  const wasOpen = navigationOpen.value;
+  navigationOpen.value = false;
+  if (wasOpen) void nextTick(() => menuButton.value?.focus());
+};
+const openNavigation = async () => {
+  navigationOpen.value = true;
+  await nextTick();
+  document.querySelector<HTMLElement>('#console-sidebar a')?.focus();
+};
+let query: MediaQueryList;
+const updateViewport = () => {
+  mobile.value = query.matches;
+  if (!mobile.value) navigationOpen.value = false;
+};
+onMounted(() => {
+  query = window.matchMedia('(max-width: 720px)');
+  updateViewport();
+  query.addEventListener('change', updateViewport);
+});
+onUnmounted(() => query?.removeEventListener('change', updateViewport));
 </script>
 
 <style scoped>
-.layout {
+.console-shell {
   display: flex;
-  height: 100vh;
-  width: 100vw;
-  background: var(--background);
-  color: var(--foreground);
-  transition: background 0.3s ease;
+  margin: 20px;
+  width: calc(100% - 40px);
+  height: calc(100dvh - 40px);
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 12px 45px #0002;
 }
-
-.main {
+.console-main {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   background: var(--window-background);
-  overflow: hidden;
-  position: relative;
 }
-
-.header {
-  height: 64px;
-  border-bottom: 1px solid var(--glass-border);
+.topbar {
+  min-height: 58px;
+  flex: none;
+  padding: 10px 26px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--window-header);
+}
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--system-gray);
+}
+.breadcrumb strong {
+  color: var(--foreground);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.instance-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--system-gray);
+  min-width: 0;
+}
+.instance-state > span:last-child {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 30px max(28px, calc((100% - var(--content-max-width)) / 2)) 18px;
+  display: flex;
+  flex-direction: column;
+  scrollbar-gutter: stable;
+}
+.page-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 32px;
-  background: var(--window-header);
-  backdrop-filter: blur(20px);
-  z-index: 10;
-  transition: background 0.3s ease, border-color 0.3s ease;
+  gap: 20px;
+  margin-bottom: 24px;
+  flex: none;
 }
-
-.title-area {
+.page-title {
+  min-width: 0;
+}
+.page-title-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  margin-top: 7px;
 }
-
-.title-area h3 {
-  font-size: 16px;
-  font-weight: 600;
-  opacity: 0.9;
+.page-title-row > .icon-button {
+  margin-left: -6px;
 }
-
-.global-back-btn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--foreground);
+h1 {
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.5px;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.page-title p {
+  color: var(--system-gray);
+  font-size: 12px;
+  margin-top: 5px;
+  line-height: 1.8;
+}
+.heading-actions {
   display: flex;
   align-items: center;
-  opacity: 0.6;
-  padding: 4px;
-  border-radius: 6px;
-  transition: all 0.2s;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  flex-shrink: 0;
+  max-width: 60%;
 }
-
-.global-back-btn:hover {
-  opacity: 1;
-  background: var(--item-hover);
+.heading-actions:empty {
+  display: none;
 }
-
-.content {
+.page-body {
   flex: 1;
-  overflow: auto;
-  padding: 24px;
+  min-width: 0;
+}
+.console-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--system-gray);
+  font-size: 11px;
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.mobile-menu,
+.sidebar-mask {
+  display: none;
+}
+@media (max-width: 1100px) {
+  .page-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .heading-actions {
+    max-width: 100%;
+  }
+  .workspace-content {
+    padding: 24px 20px 16px;
+  }
+}
+@media (max-width: 720px) {
+  .console-shell {
+    margin: 0;
+    width: 100%;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+  .topbar {
+    padding: 6px 12px;
+    gap: 8px;
+  }
+  .mobile-menu {
+    display: inline-flex;
+  }
+  .breadcrumb-root {
+    display: none;
+  }
+  .instance-state > span:last-child {
+    max-width: 120px;
+  }
+  .workspace-content {
+    padding: 22px 16px 16px;
+  }
+  .page-heading {
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: 22px;
+  }
+  .heading-actions {
+    width: 100%;
+  }
+  .sidebar-mask {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: #0008;
+    border: 0;
+    border-radius: 0;
+  }
 }
 </style>

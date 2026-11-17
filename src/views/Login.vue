@@ -1,42 +1,57 @@
 <template>
-  <div class="login-page">
-    <div class="login-card">
-      <div class="brand">
-        <div class="logo">
-           <img src="/logo.png" alt="Poke" width="64" height="64" />
-        </div>
-        <h1>Poke</h1>
+  <main class="login-layout">
+    <section class="login-story" aria-label="Poke 简介">
+      <div class="login-brand">
+        <img :src="'/logo.png'" alt="Poke 标志" width="38" height="38" /><strong>Poke</strong
+        ><span>容器管理控制台</span>
       </div>
-
-      <p class="subtitle">请输入管理员密码以继续</p>
-
-      <form @submit.prevent="handleLogin" class="login-form">
-        <div class="input-group">
-           <input
-             v-model="password"
-             type="password"
-             placeholder="密码"
-             :disabled="loading"
-             ref="passwordInput"
-             class="input"
-             autocomplete="off"
-           />
+      <div class="story-copy">
+        <span class="eyebrow">从一台主机，到每一个节点。</span>
+        <h1>让容器有序运行，<br />让管理简单清晰<span>。</span></h1>
+        <p>从 Compose 部署到多节点协作，<br />在一个控制台，掌握你的 Docker 环境。</p>
+        <div class="login-features">
+          <span><Box :size="16" />容器与终端</span><span><Layers :size="16" />应用编排</span
+          ><span><Network :size="16" />多节点连接</span>
         </div>
-
-        <button type="submit" class="btn-submit" :disabled="loading || !password">
-           <span v-if="!loading">登录</span>
-           <span v-else class="loader"></span>
+      </div>
+      <small>Poke / 独立部署 · 自主管理</small>
+    </section>
+    <section class="login-panel" aria-labelledby="login-title">
+      <form @submit.prevent="handleLogin">
+        <span class="eyebrow">控制台登录</span>
+        <h2 id="login-title">欢迎回来</h2>
+        <p class="login-intro">输入管理员密码，继续管理你的容器环境。</p>
+        <label for="admin-password">管理员密码</label>
+        <input
+          id="admin-password"
+          ref="passwordInput"
+          v-model="password"
+          type="password"
+          placeholder="请输入密码"
+          :disabled="loading"
+          autocomplete="current-password"
+          required
+          :aria-invalid="!!error"
+          :aria-describedby="error ? 'login-error' : undefined"
+        />
+        <p v-if="error" id="login-error" class="inline-error login-error" role="alert">{{ error }}</p>
+        <button type="submit" class="primary login-submit" :disabled="loading || !password">
+          <LoaderCircle v-if="loading" :size="16" class="spin" /><span>{{
+            loading ? '正在登录…' : '进入控制台'
+          }}</span
+          ><ArrowRight v-if="!loading" :size="16" />
         </button>
-
-        <p v-if="error" class="error-msg">{{ error }}</p>
+        <div class="login-note">
+          <KeyRound :size="15" /><span>首次启动会自动生成管理员密码，请从服务的首次启动日志中获取。</span>
+        </div>
       </form>
-    </div>
-  </div>
+    </section>
+  </main>
 </template>
-
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { Box, Layers, KeyRound, Network, ArrowRight, LoaderCircle } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 
 const password = ref('');
@@ -48,148 +63,189 @@ const router = useRouter();
 const authStore = useAuthStore();
 
 const handleLogin = async () => {
-    if (!password.value) return;
-    loading.value = true;
-    error.value = '';
+  if (!password.value) return;
+  loading.value = true;
+  error.value = '';
 
-    try {
-        const success = await authStore.login(password.value);
-        if (success) {
-            router.push('/');
-        } else {
-            error.value = '密码错误，请重试';
-        }
-    } catch (e) {
-        error.value = '登录失败，请检查网络';
-    } finally {
-        loading.value = false;
+  try {
+    const success = await authStore.login(password.value);
+    if (success) {
+      router.push('/');
+    } else {
+      error.value = '密码错误，请重试';
     }
+  } catch (e) {
+    error.value = '登录失败，请检查网络';
+  } finally {
+    loading.value = false;
+  }
 };
 
 onMounted(() => {
-    passwordInput.value?.focus();
+  passwordInput.value?.focus();
 });
 </script>
-
 <style scoped>
-.login-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  width: 100vw;
-  background: var(--background);
-  color: var(--foreground);
+.login-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100dvh;
 }
-
-.login-card {
-  background: var(--window-background);
-  padding: 40px;
-  border-radius: 24px;
-  border: 1px solid var(--glass-border);
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+.login-story {
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+  gap: 60px;
+  padding: 48px clamp(28px, 4vw, 64px);
+  border-right: 1px solid var(--border);
+  background: radial-gradient(ellipse at 0% 60%, var(--accent-soft), transparent 75%), var(--surface);
+}
+.login-brand {
+  display: flex;
   align-items: center;
-  backdrop-filter: blur(20px);
+  gap: 10px;
 }
-
-.brand {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 8px;
+.login-brand strong {
+  font-size: 24px;
+  letter-spacing: -0.6px;
 }
-
-.logo {
-    /* Image handles its own styling */
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.login-brand > span {
+  margin-left: 8px;
+  padding-left: 16px;
+  border-left: 1px solid var(--border);
+  color: var(--system-gray);
+  font-size: 12px;
 }
-
 h1 {
-    font-size: 24px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
+  font-size: clamp(30px, 3.25vw, 50px);
+  line-height: 1.7;
+  font-weight: 400;
+  margin: 20px 0;
+  letter-spacing: -0.5px;
 }
-
-.subtitle {
-    font-size: 14px;
-    color: var(--system-gray);
-    margin-bottom: 32px;
+h1 > span {
+  color: var(--blue);
 }
-
-.login-form {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+.story-copy p {
+  color: var(--system-gray);
+  line-height: 2.2;
+  font-size: 13px;
 }
-
-.input {
-    width: 100%;
-    height: 48px;
-    border-radius: 12px;
-    border: 1px solid var(--glass-border);
-    background: var(--input-background);
-    color: var(--foreground);
-    padding: 0 16px;
-    font-size: 16px;
-    outline: none;
-    transition: all 0.2s;
+.login-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  margin-top: 40px;
+  font-size: 12px;
+  color: var(--system-gray);
 }
-
-.input:focus {
-    border-color: var(--system-blue);
-    box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.1);
+.login-features span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-
-.btn-submit {
-    height: 48px;
-    border-radius: 12px;
-    background: var(--foreground);
-    color: var(--background);
-    border: none;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.login-features svg {
+  color: var(--blue);
 }
-
-.btn-submit:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+.login-story > small {
+  font-size: 11px;
+  color: var(--system-gray);
+  letter-spacing: 1px;
 }
-
-.btn-submit:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
+.login-panel {
+  display: grid;
+  place-items: center;
+  padding: 40px;
+  background: var(--window-background);
 }
-
-.error-msg {
-    color: var(--system-red);
-    font-size: 13px;
-    text-align: center;
-    margin-top: 8px;
+.login-panel form {
+  width: 100%;
+  max-width: 350px;
 }
-
-.loader {
-    width: 20px;
-    height: 20px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+h2 {
+  font-size: 26px;
+  font-weight: 500;
+  margin: 12px 0 8px;
 }
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
+.login-intro {
+  color: var(--system-gray);
+  font-size: 12px;
+  margin-bottom: 32px;
+  line-height: 1.8;
+}
+.login-panel label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.login-panel input {
+  min-height: 42px;
+}
+.login-submit {
+  margin-top: 20px;
+  width: 100%;
+  min-height: 42px;
+}
+.login-submit span {
+  flex: 1;
+}
+.login-error {
+  margin-top: 12px;
+  font-size: 12px;
+}
+.login-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--system-gray);
+  font-size: 12px;
+  line-height: 1.9;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.login-note svg {
+  flex: none;
+  margin-top: 3px;
+}
+@media (max-width: 900px) {
+  .login-layout {
+    grid-template-columns: 1fr 1fr;
+  }
+  .login-story {
+    padding: 32px;
+  }
+  h1 {
+    font-size: 30px;
+  }
+  .login-brand > span {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .login-layout {
+    grid-template-columns: 1fr;
+  }
+  .login-story {
+    padding: 24px;
+    gap: 24px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .login-story h1 {
+    font-size: 26px;
+    margin: 10px 0;
+  }
+  .login-story > small,
+  .login-features,
+  .story-copy > p {
+    display: none;
+  }
+  .login-panel {
+    padding: 32px 24px 48px;
+  }
+  .login-panel form {
+    max-width: 420px;
+  }
 }
 </style>

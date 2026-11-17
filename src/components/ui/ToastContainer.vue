@@ -1,21 +1,14 @@
 <template>
   <Teleport to="body">
-    <div class="toast-container">
-      <div
-        v-for="toast in toasts"
-        :key="toast.id"
-        class="toast"
-        :class="toast.type"
-      >
+    <div class="toast-container" aria-live="polite" aria-relevant="additions">
+      <div v-for="toast in toasts" :key="toast.id" class="toast" :class="toast.type">
         <CheckCircle v-if="toast.type === 'success'" :size="16" color="var(--system-green)" />
         <AlertCircle v-if="toast.type === 'error'" :size="16" color="var(--system-red)" />
         <Info v-if="toast.type === 'info'" :size="16" color="var(--system-blue)" />
-        <span style="flex: 1">{{ toast.message }}</span>
-        <X
-            :size="14"
-            style="cursor: pointer; opacity: 0.5"
-            @click="removeToast(toast.id)"
-        />
+        <span class="toast-message">{{ toast.message }}</span>
+        <button class="icon-button" aria-label="关闭通知" @click="removeToast(toast.id)">
+          <X :size="14" />
+        </button>
       </div>
     </div>
   </Teleport>
@@ -33,52 +26,48 @@ const removeToast = toastStore.removeToast;
 
 <style scoped>
 .toast-container {
-    position: fixed;
-    top: 24px;
-    right: 24px;
-    z-index: 10000;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 12000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 32px));
 }
-
 .toast {
-    background: var(--window-background);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid var(--glass-border);
-    color: var(--foreground);
-    padding: 12px 16px;
-    border-radius: 8px;
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    animation: slideIn 0.3s ease forwards;
-    min-width: 260px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--foreground);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  box-shadow: var(--glass-shadow);
 }
-
+.toast > svg {
+  flex: none;
+}
+.toast-message {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .toast.success {
-    border-left: 3px solid var(--system-green);
+  border-left: 3px solid var(--system-green);
 }
-
 .toast.error {
-    border-left: 3px solid var(--system-red);
+  border-left: 3px solid var(--system-red);
 }
-
 .toast.info {
-    border-left: 3px solid var(--system-blue);
+  border-left: 3px solid var(--system-blue);
 }
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateX(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
+@media (max-width: 720px) {
+  .toast-container {
+    top: 12px;
+    right: 16px;
+  }
 }
 </style>

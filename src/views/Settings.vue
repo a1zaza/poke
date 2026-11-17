@@ -1,125 +1,128 @@
 <template>
   <DashboardLayout>
-    <Teleport to="#header-action" v-if="mounted">
-      <button
-        @click="handleSave"
-        class="btn-submit"
-        :disabled="saving"
-      >
-        <Save :size="14" fill="currentColor" />
-        {{ saving ? '正在保存...' : '保存设置' }}
-      </button>
-    </Teleport>
-
-    <div v-if="loading" class="loading">加载中...</div>
-
+    <Teleport v-if="mounted && activeSection !== 'nodes'" to="#header-action"
+      ><button class="btn-submit" :disabled="saving || loading || !!loadError" @click="handleSave">
+        <Save :size="14" />{{ saving ? '正在保存…' : '保存设置' }}
+      </button></Teleport
+    >
+    <div v-if="loading" class="settings-loading" role="status">正在加载系统设置…</div>
+    <div v-else-if="loadError" class="inline-error" role="alert">
+      <p>{{ loadError }}</p>
+      <button class="secondary" @click="fetchConfig">重新加载设置</button>
+    </div>
     <div v-else class="settings-container">
-      <div class="card">
-        <!-- Hostname Section -->
-        <div class="section">
-          <label class="label">
-            <Layout :size="14" class="icon" />
-            主机名称 (Hostname)
-          </label>
-          <input
-            type="text"
-            class="input"
-            :placeholder="hostname || 'System Hostname'"
-            v-model="hostname"
-            autocomplete="off"
-          />
-          <p class="hint">设置自定义主机名，留空则使用系统默认</p>
+      <nav class="settings-tabs" aria-label="设置分类">
+        <button
+          :class="{ active: activeSection === 'general' }"
+          :aria-pressed="activeSection === 'general'"
+          @click="activeSection = 'general'"
+        >
+          <Layout :size="15" />基本设置
+        </button>
+        <button
+          :class="{ active: activeSection === 'registries' }"
+          :aria-pressed="activeSection === 'registries'"
+          @click="activeSection = 'registries'"
+        >
+          <Database :size="15" />镜像仓库
+        </button>
+        <button
+          v-if="systemStore.info.isController"
+          :class="{ active: activeSection === 'nodes' }"
+          :aria-pressed="activeSection === 'nodes'"
+          @click="activeSection = 'nodes'"
+        >
+          <Network :size="15" />节点与任务
+        </button>
+      </nav>
+      <section v-show="activeSection === 'general'" class="settings-card" aria-label="基本设置">
+        <header>
+          <h2>实例信息</h2>
+          <p>设置控制台的名称、外观和管理员凭据。</p>
+        </header>
+        <div class="settings-field">
+          <label for="hostname"><Layout :size="14" />主机名称</label
+          ><input id="hostname" v-model="hostname" placeholder="留空使用系统主机名" autocomplete="off" />
+          <p class="hint">显示在节点选择器中，方便区分不同实例。</p>
         </div>
-
-        <!-- Password Section -->
-        <div class="section">
-          <label class="label">
-            <Lock :size="14" class="icon" />
-            修改管理员密码
-          </label>
-          <input
-            type="password"
-            class="input"
-            placeholder="如果不修改请留空"
+        <div class="settings-field">
+          <label for="new-password"><Lock :size="14" />管理员密码</label
+          ><input
+            id="new-password"
             v-model="password"
-            autocomplete="off"
+            type="password"
+            placeholder="不修改请留空"
+            autocomplete="new-password"
           />
-          <p class="hint">留空保持原密码不变</p>
+          <p class="hint">留空保持现有密码。</p>
         </div>
-
-        <!-- Logo Section -->
-        <div class="section">
-          <label class="label">
-            <User :size="14" class="icon" />
-            页面 Logo
-          </label>
-
-          <div style="margin-top: 12px">
-            <input
-              type="file"
-              accept="image/*"
-              @change="handleLogoUpload"
-              ref="fileInputRef"
-              style="display: none"
-            />
-
-            <div
-              class="logo-wrapper"
-              @click="fileInputRef?.click()"
-              title="点击上传新 Logo"
+        <div class="settings-field">
+          <label><User :size="14" />控制台标志</label
+          ><input
+            ref="fileInputRef"
+            type="file"
+            accept="image/png,image/jpeg"
+            aria-label="上传控制台标志"
+            hidden
+            @change="handleLogoUpload"
+          /><button
+            type="button"
+            class="logo-wrapper"
+            aria-label="上传新的控制台标志"
+            @click="fileInputRef?.click()"
+          >
+            <img :src="logo || '/logo.png'" alt="当前标志" /><span><Upload :size="18" /></span>
+          </button>
+          <p class="hint">支持 PNG、JPG，点击图标上传，保存后生效。</p>
+        </div>
+      </section>
+      <section v-show="activeSection === 'registries'" class="settings-card" aria-label="镜像仓库认证">
+        <header>
+          <h2>镜像仓库认证</h2>
+          <p>配置拉取私有镜像所需的访问凭据。</p>
+        </header>
+        <div class="registry-list">
+          <p v-if="!registries.length" class="settings-empty">尚未添加仓库认证，公开镜像无需配置。</p>
+          <div v-for="(registry, index) in registries" :key="index" class="registry-item">
+            <label
+              >仓库域名<input v-model="registry.domain" placeholder="例如 docker.io" autocomplete="off"
+            /></label>
+            <label
+              >用户名<input v-model="registry.username" placeholder="仓库用户名" autocomplete="off"
+            /></label>
+            <label
+              >密码 / Token<input
+                v-model="registry.password"
+                type="password"
+                placeholder="留空不修改"
+                autocomplete="new-password"
+            /></label>
+            <button
+              class="icon-button remove-registry"
+              :aria-label="`删除仓库 ${registry.domain || index + 1}`"
+              title="删除仓库"
+              @click="removeRegistry(index)"
             >
-              <img
-                :src="logo || '/logo.png'"
-                alt="当前标志"
-                class="logo-image"
-              />
-              <div class="upload-overlay">
-                <Upload :size="24" />
-              </div>
-            </div>
-
-            <p class="hint" style="margin-top: 8px">
-              支持 PNG, JPG。点击图片上传，保存后生效。
-            </p>
-          </div>
-        </div>
-
-        <NodeManager v-if="systemStore.info.isController" :registries="registries.map(r => r.domain).filter(Boolean)" />
-
-        <!-- Registry Auth Section -->
-        <div class="section">
-          <label class="label">
-            <Database :size="14" class="icon" />
-            私有镜像仓库认证 (Registry Auth)
-          </label>
-          <div class="backend-manager">
-            <div v-for="(r, index) in registries" :key="index" class="backend-item">
-              <Database :size="14" class="icon-small" />
-              <div class="backend-inputs">
-                <input v-model="r.domain" placeholder="仓库域名 (e.g. docker.io)" class="input slim" autocomplete="off" />
-                <input v-model="r.username" placeholder="用户名" class="input slim" autocomplete="off" />
-                <input v-model="r.password" type="password" placeholder="密码/Token (留空不修改)" class="input slim" autocomplete="off" />
-              </div>
-              <button @click="removeRegistry(index)" class="btn-remove">
-                <Trash2 :size="14" />
-              </button>
-            </div>
-            <button @click="addRegistry" class="btn-add">
-              <Plus :size="14" />
-              添加认证信息
+              <Trash2 :size="16" />
             </button>
           </div>
-          <p class="hint">配置私有仓库的访问凭证。Agent 仅能在授权范围内，为当前操作获取这些凭证。请先保存仓库，再在节点注册时选择授权。</p>
+          <button class="secondary" @click="addRegistry"><Plus :size="15" />添加仓库认证</button>
+          <p class="hint">Agent 仅能获取授权范围内的仓库凭据。请先保存仓库，再前往“节点与任务”授权。</p>
         </div>
-      </div>
+      </section>
+      <section
+        v-if="activeSection === 'nodes' && systemStore.info.isController"
+        class="settings-card"
+        aria-label="节点与任务"
+      >
+        <NodeManager :registries="registries.map((registry) => registry.domain).filter(Boolean)" />
+      </section>
     </div>
-
   </DashboardLayout>
 </template>
-
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { Save, Lock, Layout, User, Upload, Plus, Trash2, Database } from 'lucide-vue-next';
+import { Save, Lock, Layout, User, Upload, Plus, Trash2, Database, Network } from 'lucide-vue-next';
 import NodeManager from '@/components/NodeManager.vue';
 import DashboardLayout from '@/layouts/DashboardLayout.vue';
 import { useToastStore } from '@/stores/toast';
@@ -131,36 +134,39 @@ const toastStore = useToastStore();
 const headerStore = useHeaderStore();
 const systemStore = useSystemStore();
 
+const activeSection = ref('general');
 const hostname = ref('');
 const password = ref('');
 const logo = ref('');
 const registries = ref<any[]>([]);
 const loading = ref(true);
+const loadError = ref('');
 const saving = ref(false);
 const mounted = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const fetchConfig = async () => {
+  loading.value = true;
   try {
     const data = await request('/api/settings/system', { localOnly: true });
     if (data.hostname) hostname.value = data.hostname;
     if (data.logo) logo.value = data.logo;
-    registries.value = (data.registries || [])
-      .map((r: any) => ({ ...r, password: '' })); // don't show existing passwords
+    registries.value = (data.registries || []).map((r: any) => ({ ...r, password: '' })); // don't show existing passwords
 
+    loadError.value = '';
     loading.value = false;
   } catch (err) {
-    toastStore.addToast('加载配置失败', 'error');
+    loadError.value = err instanceof Error ? err.message : '加载设置失败，请重试';
     loading.value = false;
   }
 };
 
 const addRegistry = () => {
-    registries.value.push({ domain: '', username: '', password: '' });
+  registries.value.push({ domain: '', username: '', password: '' });
 };
 
 const removeRegistry = (index: number) => {
-    registries.value.splice(index, 1);
+  registries.value.splice(index, 1);
 };
 
 const handleSave = async () => {
@@ -214,219 +220,138 @@ onUnmounted(() => {
   headerStore.reset();
 });
 </script>
-
 <style scoped>
 .settings-container {
-  padding: 0;
-  max-width: 800px;
-  margin: 0 auto;
-  animation: fadeIn 0.3s ease-out;
+  width: 100%;
 }
-
-.loading {
+.settings-tabs {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 200px;
-  color: var(--system-gray);
-}
-
-.card {
-  background: var(--card-background);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  padding: 32px;
-  backdrop-filter: blur(20px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.section {
-  margin-bottom: 24px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--glass-border);
-}
-
-.section:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-  margin-bottom: 0;
-}
-
-.label {
-  display: flex;
-  align-items: center;
   gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.settings-tabs button {
+  background: transparent;
+  color: var(--system-gray);
+  border-color: transparent;
+  font-size: 12px;
+}
+.settings-tabs button.active {
+  background: var(--accent-soft);
+  border-color: var(--border);
+  color: var(--blue);
+}
+.settings-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 24px;
+}
+.settings-card header {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.settings-card h2 {
   font-size: 14px;
   font-weight: 500;
-  margin-bottom: 12px;
-  color: var(--system-gray);
 }
-
-.icon {
-  color: var(--system-blue);
-  opacity: 0.8;
-}
-
-.icon-small {
-  color: var(--system-gray);
-  margin-top: 10px;
-}
-
-.input {
-  width: 100%;
-  background: var(--input-background);
-  border: 1px solid var(--card-border);
-  color: var(--foreground);
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.2s;
-  outline: none;
-}
-
-.input:focus {
-  border-color: var(--system-blue);
-}
-
+.settings-card header p,
 .hint {
-  margin-top: 8px;
-  font-size: 12px;
   color: var(--system-gray);
-  opacity: 0.8;
+  font-size: 12px;
+  line-height: 1.8;
+  margin-top: 6px;
 }
-
-.logo-wrapper {
-  width: 80px;
-  height: 80px;
-  border-radius: 12px;
-  border: 1px solid var(--card-border);
-  position: relative;
-  overflow: hidden;
-  cursor: pointer;
-  background: var(--card-background);
+.settings-field {
+  max-width: 600px;
+  margin-bottom: 24px;
 }
-
-.logo-wrapper:hover .upload-overlay {
-  opacity: 1;
+.settings-field:last-child {
+  margin-bottom: 0;
 }
-
-.upload-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+.settings-field > label {
   display: flex;
   align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s;
-  color: white;
+  gap: 7px;
+  font-size: 12px;
+  margin-bottom: 10px;
 }
-
-.logo-image {
+.settings-field > label svg {
+  color: var(--system-gray);
+}
+.logo-wrapper {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  padding: 6px;
+  background: var(--field);
+}
+.logo-wrapper img {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 8px;
 }
-
-.btn-submit {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--system-blue);
-  color: white;
-  border: none;
-  padding: 6px 16px;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
-  height: 32px;
+.logo-wrapper > span {
+  display: none;
+  position: absolute;
+  inset: 0;
+  place-items: center;
+  background: #0008;
+  color: #fff;
 }
-
-.btn-submit:hover:not(:disabled) {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+.logo-wrapper:hover > span,
+.logo-wrapper:focus-visible > span {
+  display: grid;
 }
-
-.backend-manager {
+.registry-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.backend-item {
-  display: flex;
-  gap: 8px;
   align-items: flex-start;
-  padding: 12px;
-  background: var(--item-hover);
-  border-radius: 8px;
-  border: 1px solid var(--glass-border);
+  gap: 16px;
 }
-
-.backend-inputs {
-  flex: 1;
+.registry-item {
+  width: 100%;
   display: grid;
-  grid-template-columns: 1fr 2fr 1.5fr;
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 34px;
+  gap: 12px;
+  padding: 16px;
+  background: var(--window-background);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  align-items: end;
 }
-
-.input.slim {
-  padding: 8px 12px;
-  font-size: 13px;
+.registry-item label {
+  font-size: 12px;
+  color: var(--system-gray);
 }
-
-.btn-remove {
-  background: transparent;
-  border: none;
-  color: var(--system-red);
-  cursor: pointer;
-  padding: 8px;
-  opacity: 0.6;
-  transition: opacity 0.2s;
-  margin-top: 2px;
-}
-
-.btn-remove:hover {
-  opacity: 1;
-}
-
-.btn-add {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: transparent;
-  border: 1px dashed var(--system-blue);
-  color: var(--system-blue);
-  padding: 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
+.registry-item input {
   margin-top: 8px;
 }
-
-.btn-add:hover {
-  background: rgba(0, 122, 255, 0.05);
+.remove-registry {
+  color: var(--system-red);
 }
-
-.btn-submit:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-  transform: none;
+.settings-empty,
+.settings-loading {
+  padding: 28px 0;
+  color: var(--system-gray);
 }
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
+@media (max-width: 900px) {
+  .registry-item {
+    grid-template-columns: minmax(0, 1fr);
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  .remove-registry {
+    justify-self: end;
+  }
+}
+@media (max-width: 720px) {
+  .settings-card {
+    padding: 18px;
+  }
+  .settings-tabs button {
+    flex: 1;
   }
 }
 </style>

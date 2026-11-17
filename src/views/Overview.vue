@@ -1,531 +1,510 @@
 <template>
   <DashboardLayout>
-    <div v-if="loading && !stats" class="loading">加载中...</div>
-
-    <div v-else-if="error" class="loading" role="alert">
-      <p>{{ error }}</p>
-      <button @click="fetchStats">重试连接</button>
-      <router-link to="/settings">前往系统设置管理节点</router-link>
+    <section v-if="system.ready && !system.nodes.length" class="overview-state">
+      <Server :size="32" />
+      <h2>连接你的第一个节点</h2>
+      <p>在系统设置中注册 Agent，即可开始查看资源和管理容器。</p>
+      <router-link class="button primary" to="/settings">前往添加节点<ArrowUpRight :size="15" /></router-link>
+    </section>
+    <div v-else-if="loading && !stats" class="overview-state" role="status">
+      <LoaderCircle class="spin" :size="24" />
+      <p>正在获取节点运行情况…</p>
     </div>
-    <div v-else-if="stats" class="dashboard-container">
-      <!-- Quick Stats Grid -->
-      <div class="stats-grid">
-        <div class="stat-card" @click="router.push('/containers')">
-          <div class="stat-icon blue">
-            <Box :size="24" />
-          </div>
-          <div class="stat-info">
-            <div class="stat-label">容器</div>
-            <div class="stat-value">{{ stats.docker.containers.total }}</div>
-            <div class="stat-sub">
-              <span class="running">{{ stats.docker.containers.running }} 运行中</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="stat-card" @click="router.push('/images')">
-          <div class="stat-icon green">
-            <HardDrive :size="24" />
-          </div>
-          <div class="stat-info">
-            <div class="stat-label">镜像</div>
-            <div class="stat-value">{{ stats.docker.images }}</div>
-            <div class="stat-sub">本地已存储</div>
-          </div>
-        </div>
-
-        <div class="stat-card" @click="router.push('/networks')">
-          <div class="stat-icon orange">
-            <Network :size="24" />
-          </div>
-          <div class="stat-info">
-            <div class="stat-label">网络</div>
-            <div class="stat-value">{{ stats.docker.networks }}</div>
-            <div class="stat-sub">虚拟网桥</div>
-          </div>
-        </div>
-
-        <div class="stat-card" @click="router.push('/volumes')">
-          <div class="stat-icon purple">
-            <Database :size="24" />
-          </div>
-          <div class="stat-info">
-            <div class="stat-label">存储卷</div>
-            <div class="stat-value">{{ stats.docker.volumes }}</div>
-            <div class="stat-sub">持久化数据</div>
-          </div>
-        </div>
+    <section v-else-if="error" class="overview-state" role="alert">
+      <Server :size="28" />
+      <h2>暂时无法连接节点</h2>
+      <p>{{ error }}</p>
+      <div class="header-controls">
+        <button class="secondary" @click="fetchStats"><RefreshCw :size="14" />重试连接</button
+        ><router-link to="/settings" class="button secondary">管理节点</router-link>
       </div>
-
-      <div class="main-grid">
-        <!-- System Info -->
-        <div class="card">
-          <div class="card-header">
-            <Info :size="18" />
-            系统信息
-          </div>
-          <div class="info-list">
-            <div class="info-item">
-              <span class="info-label">主机名</span>
-              <span class="info-value">{{ stats.hostname }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">平台</span>
-              <span class="info-value">{{ stats.platform }} ({{ stats.release }})</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">处理器</span>
-              <span class="info-value">{{ stats.cpus.count }} 核 - {{ stats.cpus.model }}</span>
-            </div>
-          </div>
+    </section>
+    <div v-else-if="stats" class="dashboard-container">
+      <section class="overview-banner">
+        <div class="banner-icon"><Server :size="22" /></div>
+        <div>
+          <h2>{{ stats.hostname }}</h2>
+          <p>{{ stats.platform }} · {{ stats.cpus.count }} 核处理器 · Docker 资源概览</p>
         </div>
-
-        <!-- Resource Usage -->
-        <div class="card">
-          <div class="card-header">
-            <Activity :size="18" />
-            资源占用
+        <span class="connection-badge"><span class="status-dot running" />节点已连接</span>
+      </section>
+      <div class="stats-grid">
+        <button class="stat-card" @click="router.push('/containers')">
+          <div class="stat-top"><span>容器</span><Box :size="17" /></div>
+          <strong>{{ stats.docker.containers.total }}</strong>
+          <div class="stat-bottom">
+            <span class="running">{{ stats.docker.containers.running }} 运行中</span
+            ><ArrowUpRight :size="14" />
           </div>
-          <div class="resource-group">
-            <div class="resource-header">
-              <div class="resource-title">
-                <MemoryStick :size="16" />
-                内存使用
-              </div>
-              <div class="resource-value">{{ stats.memory.usagePercent }}%</div>
+        </button>
+        <button class="stat-card" @click="router.push('/images')">
+          <div class="stat-top"><span>镜像</span><HardDrive :size="17" /></div>
+          <strong>{{ stats.docker.images }}</strong>
+          <div class="stat-bottom"><span>本地镜像</span><ArrowUpRight :size="14" /></div>
+        </button>
+        <button class="stat-card" @click="router.push('/networks')">
+          <div class="stat-top"><span>网络</span><Network :size="17" /></div>
+          <strong>{{ stats.docker.networks }}</strong>
+          <div class="stat-bottom"><span>Docker 网络</span><ArrowUpRight :size="14" /></div>
+        </button>
+        <button class="stat-card" @click="router.push('/volumes')">
+          <div class="stat-top"><span>存储卷</span><Database :size="17" /></div>
+          <strong>{{ stats.docker.volumes }}</strong>
+          <div class="stat-bottom"><span>持久化数据卷</span><ArrowUpRight :size="14" /></div>
+        </button>
+      </div>
+      <div class="overview-grid">
+        <section class="overview-card">
+          <header>
+            <Info :size="16" />
+            <h2>系统信息</h2>
+          </header>
+          <dl class="system-info">
+            <div>
+              <dt>主机名称</dt>
+              <dd>{{ stats.hostname }}</dd>
             </div>
-            <div class="progress-container">
+            <div>
+              <dt>操作系统</dt>
+              <dd>{{ stats.platform }} ({{ stats.release }})</dd>
+            </div>
+            <div>
+              <dt>处理器</dt>
+              <dd>{{ stats.cpus.model }}</dd>
+            </div>
+            <div>
+              <dt>核心数量</dt>
+              <dd>{{ stats.cpus.count }} 核</dd>
+            </div>
+          </dl>
+        </section>
+        <section class="overview-card">
+          <header>
+            <Activity :size="16" />
+            <h2>资源使用</h2>
+          </header>
+          <div class="resource-meter">
+            <div class="resource-heading">
+              <span><MemoryStick :size="15" />内存使用</span><strong>{{ stats.memory.usagePercent }}%</strong>
+            </div>
+            <div
+              class="meter-track"
+              role="progressbar"
+              aria-label="内存使用率"
+              :aria-valuenow="stats.memory.usagePercent"
+              :aria-valuemin="0"
+              :aria-valuemax="100"
+            >
               <div
-                class="progress-bar"
-                :style="{ width: `${stats.memory.usagePercent}%`, background: stats.memory.usagePercent > 80 ? 'var(--system-red)' : 'var(--system-blue)' }"
+                :style="{
+                  width: `${Math.min(100, stats.memory.usagePercent)}%`,
+                  background: stats.memory.usagePercent > 80 ? 'var(--system-red)' : 'var(--system-blue)'
+                }"
               />
             </div>
-            <div class="resource-details">
-              <span>已用 {{ formatBytes(stats.memory.used) }}</span>
-              <span>总量 {{ formatBytes(stats.memory.total) }}</span>
+            <div class="meter-detail">
+              <span>已用 {{ formatBytes(stats.memory.used) }}</span
+              ><span>总量 {{ formatBytes(stats.memory.total) }}</span>
             </div>
           </div>
-        </div>
-
-        <!-- Port Mappings -->
-        <div class="card full-width">
-           <div class="card-header">
-             <Globe :size="18" />
-             服务端口映射
-           </div>
-           <div v-if="stats.ports && stats.ports.length === 0" class="empty-ports">
-               暂无活跃的端口映射
-           </div>
-           <div v-else-if="stats.ports" class="port-table-container">
-               <table class="port-table">
-                   <thead>
-                       <tr>
-                           <th>状态</th>
-                           <th>容器名称</th>
-                           <th>绑定 IP</th>
-                           <th>端口映射 (宿主机:容器)</th>
-                           <th>协议</th>
-                       </tr>
-                   </thead>
-                   <tbody>
-                       <tr v-for="(p, idx) in stats.ports" :key="idx" class="port-row">
-                           <td class="status-cell">
-                               <div class="status-dot" :class="p.state"></div>
-                           </td>
-                           <td class="container-cell" :title="p.container">{{ p.container }}</td>
-                           <td class="ip-cell">
-                               <span v-if="p.public">{{ p.ip || '0.0.0.0' }}</span>
-                               <span v-else style="opacity: 0.3">-</span>
-                           </td>
-                           <td class="port-cell">
-                               <span v-if="p.public"><span class="highlight">{{ p.public }}</span>:</span>
-                               <span v-else></span>
-                               {{ p.private }}
-                           </td>
-                           <td class="proto-cell">{{ p.type }}</td>
-                       </tr>
-                   </tbody>
-               </table>
-           </div>
-        </div>
+          <div class="runtime-summary">
+            <span
+              >运行中容器 <strong>{{ stats.docker.containers.running }}</strong></span
+            ><span
+              >已停止容器 <strong>{{ stats.docker.containers.stopped }}</strong></span
+            >
+          </div>
+        </section>
+        <section class="overview-card ports-card">
+          <header>
+            <Globe :size="16" />
+            <h2>服务端口</h2>
+            <span class="muted">{{ stats.ports?.length || 0 }} 项映射</span>
+          </header>
+          <div class="port-table-container">
+            <table class="table port-table">
+              <thead>
+                <tr>
+                  <th style="width: 80px">状态</th>
+                  <th>容器名称</th>
+                  <th>绑定 IP</th>
+                  <th>宿主机 → 容器</th>
+                  <th style="width: 80px">协议</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!stats.ports?.length">
+                  <td colspan="5" class="table-message">暂无活跃的端口映射</td>
+                </tr>
+                <tr v-for="(port, index) in stats.ports" :key="index" class="row">
+                  <td>
+                    <span
+                      class="status-dot"
+                      :class="port.state"
+                      :title="port.state"
+                      :aria-label="port.state === 'running' ? '运行中' : '已停止'"
+                    />
+                  </td>
+                  <td :title="port.container">{{ port.container }}</td>
+                  <td>{{ port.public ? port.ip || '0.0.0.0' : '—' }}</td>
+                  <td>
+                    <span v-if="port.public" class="port-number">{{ port.public }} → </span>{{ port.private }}
+                  </td>
+                  <td>{{ port.type }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </div>
   </DashboardLayout>
 </template>
-
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Box, HardDrive, Network, Database, Info, Activity, MemoryStick, Globe } from 'lucide-vue-next';
+import {
+  Box,
+  HardDrive,
+  Network,
+  Database,
+  Info,
+  Activity,
+  MemoryStick,
+  Globe,
+  Server,
+  ArrowUpRight,
+  RefreshCw,
+  LoaderCircle
+} from 'lucide-vue-next';
+import { useSystemStore } from '@/stores/system';
 import DashboardLayout from '@/layouts/DashboardLayout.vue';
 
 interface SystemStats {
-    hostname: string;
-    platform: string;
-    release: string;
-    memory: {
-        total: number;
-        free: number;
-        used: number;
-        usagePercent: number;
+  hostname: string;
+  platform: string;
+  release: string;
+  memory: {
+    total: number;
+    free: number;
+    used: number;
+    usagePercent: number;
+  };
+  cpus: {
+    model: string;
+    count: number;
+  };
+  docker: {
+    containers: {
+      total: number;
+      running: number;
+      stopped: number;
     };
-    cpus: {
-        model: string;
-        count: number;
-    };
-    docker: {
-        containers: {
-            total: number;
-            running: number;
-            stopped: number;
-        };
-        images: number;
-        volumes: number;
-        networks: number;
-    };
-    ports: Array<{
-        container: string;
-        ip: string;
-        public: number;
-        private: number;
-        type: string;
-        state: string;
-    }>;
+    images: number;
+    volumes: number;
+    networks: number;
+  };
+  ports: Array<{
+    container: string;
+    ip: string;
+    public: number;
+    private: number;
+    type: string;
+    state: string;
+  }>;
 }
 
 import { request } from '@/utils/request';
 
 const router = useRouter();
+const system = useSystemStore();
 const stats = ref<SystemStats | null>(null);
 const loading = ref(true);
 const error = ref('');
 let intervalId: number;
 
 const fetchStats = async () => {
-    try {
-        const data = await request('/api/system/info');
-        stats.value = data;
-        error.value = '';
-    } catch (err) {
-        stats.value = null;
-        error.value = (err as Error).message || '节点连接失败';
-    } finally {
-        loading.value = false;
-    }
+  try {
+    const data = await request('/api/system/info');
+    stats.value = data;
+    error.value = '';
+  } catch (err) {
+    stats.value = null;
+    error.value = (err as Error).message || '节点连接失败';
+  } finally {
+    loading.value = false;
+  }
 };
 
 const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
 onMounted(() => {
-    fetchStats();
-    intervalId = window.setInterval(fetchStats, 10000);
+  fetchStats();
+  intervalId = window.setInterval(fetchStats, 10000);
 });
 
 onUnmounted(() => {
-    clearInterval(intervalId);
+  clearInterval(intervalId);
 });
 </script>
-
 <style scoped>
 .dashboard-container {
-  padding-bottom: 32px;
-}
-
-.loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 200px;
-  color: var(--system-gray);
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-@media (max-width: 1200px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.stat-card {
-  background: var(--card-background);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 24px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); /* Soft shadow */
-}
-
-.stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 20px -3px rgba(0, 0, 0, 0.1);
-  border-color: var(--system-blue);
-}
-
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.stat-icon.blue { background: rgba(0, 122, 255, 0.1); color: var(--system-blue); }
-.stat-icon.green { background: rgba(52, 199, 89, 0.1); color: var(--system-green); }
-.stat-icon.orange { background: rgba(255, 149, 0, 0.1); color: var(--system-orange); }
-.stat-icon.purple { background: rgba(175, 82, 222, 0.1); color: var(--system-purple); }
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-label {
-  font-size: 13px;
-  color: var(--system-gray);
-  margin-bottom: 4px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--foreground);
-  margin-bottom: 4px;
-
-}
-
-.stat-sub {
-  font-size: 12px;
-  color: var(--system-gray);
-  opacity: 0.8;
-}
-
-.running {
-  color: var(--system-green);
-  font-weight: 600;
-}
-
-.main-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
-}
-
-@media (max-width: 900px) {
-  .main-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.card {
-  background: var(--card-background);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 24px;
-  color: var(--foreground);
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--card-border);
-}
-
-.info-list {
   display: flex;
   flex-direction: column;
+  gap: 22px;
+}
+.overview-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: linear-gradient(100deg, var(--accent-soft), var(--surface) 85%);
+  padding: 19px 21px;
+}
+.banner-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  color: var(--blue);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  flex: none;
+}
+.overview-banner > div:nth-child(2) {
+  min-width: 0;
+}
+.overview-banner h2 {
+  font-size: 15px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.overview-banner p {
+  font-size: 12px;
+  margin-top: 5px;
+  color: var(--system-gray);
+}
+.connection-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  color: var(--system-green);
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
-
-.info-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.stat-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 18px 20px;
 }
-
-.info-label {
+.stat-card:hover {
+  border-color: var(--blue);
+}
+.stat-top,
+.stat-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   color: var(--system-gray);
-  font-size: 14px;
+  font-size: 12px;
 }
-
-.info-value {
-  font-weight: 500;
-
-  font-size: 14px;
+.stat-top svg {
+  color: var(--system-gray);
 }
-
-.resource-group {
-  margin-bottom: 24px;
+.stat-card > strong {
+  display: block;
+  font-size: 32px;
+  line-height: 1.3;
+  font-weight: 400;
+  margin: 12px 0;
 }
-
-.resource-group:last-child {
-  margin-bottom: 0;
+.stat-bottom .running {
+  color: var(--system-green);
 }
-
-.resource-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
 }
-
-.resource-title {
+.overview-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  min-width: 0;
+}
+.overview-card > header {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.overview-card header svg {
+  color: var(--system-gray);
+}
+.overview-card h2 {
+  font-size: 13px;
   font-weight: 500;
 }
-
-.resource-value {
-  font-weight: 600;
-
-  color: var(--system-blue);
+.overview-card header .muted {
+  margin-left: auto;
+  font-size: 11px;
 }
-
-.progress-container {
-  height: 8px;
-  background: var(--input-background);
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-
-.progress-bar {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.5s ease, background 0.3s ease;
-}
-
-.resource-details {
-  display: flex;
-  justify-content: space-between;
+.system-info {
+  padding: 8px 20px;
+  margin: 0;
   font-size: 12px;
+}
+.system-info > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px 0;
+}
+.system-info dt {
   color: var(--system-gray);
-
+  flex: none;
 }
-
-.full-width {
-  grid-column: span 2;
+.system-info dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
-
-@media (max-width: 900px) {
-  .full-width {
-    grid-column: span 1;
+.resource-meter {
+  padding: 24px 20px;
+}
+.resource-heading,
+.meter-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+.resource-heading > span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.resource-heading strong {
+  color: var(--blue);
+  font-size: 18px;
+  font-weight: 400;
+}
+.meter-track {
+  height: 5px;
+  background: var(--progress-bg);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 16px 0 12px;
+}
+.meter-track > div {
+  height: 100%;
+  border-radius: inherit;
+}
+.meter-detail {
+  color: var(--system-gray);
+  font-size: 11px;
+}
+.runtime-summary {
+  display: flex;
+  gap: 24px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  color: var(--system-gray);
+  font-size: 12px;
+}
+.runtime-summary strong {
+  color: var(--foreground);
+  margin-left: 10px;
+  font-weight: 500;
+}
+.ports-card {
+  grid-column: 1 / -1;
+}
+.port-table-container {
+  overflow: auto;
+}
+.port-number {
+  color: var(--blue);
+}
+.overview-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 360px;
+  padding: 32px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  text-align: center;
+}
+.overview-state > svg {
+  color: var(--system-gray);
+}
+.overview-state h2 {
+  font-size: 17px;
+  font-weight: 500;
+}
+.overview-state p {
+  color: var(--system-gray);
+  max-width: 480px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1100px) {
+  .stats-grid {
+    gap: 12px;
+  }
+  .stat-card {
+    padding: 16px;
   }
 }
-
-.empty-ports {
-  text-align: center;
-  padding: 20px;
-  color: var(--system-gray);
-  font-size: 13px;
-  opacity: 0.6;
+@media (max-width: 800px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
 }
-
-.port-table-container {
-  overflow-x: auto;
-}
-
-.port-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.port-table th {
-  text-align: left;
-  padding: 12px 16px;
-  color: var(--system-gray);
-  font-weight: 500;
-  border-bottom: 1px solid var(--glass-border);
-  font-size: 11px;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.port-table td {
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--glass-border);
-  color: var(--foreground);
-}
-
-.port-table tr:last-child td {
-  border-bottom: none;
-}
-
-.port-row:hover {
-  background: var(--item-hover);
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--system-gray);
-}
-
-.status-dot.running {
-  background: var(--system-green);
-  box-shadow: 0 0 8px rgba(52, 199, 89, 0.4);
-}
-
-.container-cell {
-  font-weight: 500;
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ip-cell, .port-cell, .proto-cell {
-
-  font-size: 12px;
-}
-
-.ip-cell {
-  color: var(--system-gray);
-}
-
-.port-cell .highlight {
-  color: var(--system-blue);
-  font-weight: 600;
-}
-
-.proto-cell {
-  text-transform: uppercase;
-  font-size: 10px;
-  opacity: 0.7;
+@media (max-width: 540px) {
+  .overview-banner {
+    flex-wrap: wrap;
+    padding: 16px;
+    gap: 12px;
+  }
+  .connection-badge {
+    margin-left: 0;
+  }
+  .system-info > div {
+    gap: 12px;
+  }
+  .runtime-summary {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
 }
 </style>

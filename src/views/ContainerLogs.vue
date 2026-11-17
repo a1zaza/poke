@@ -24,9 +24,7 @@
             {{ autoRefresh ? '自动刷新' : '已暂停' }}
           </button>
 
-          <button class="btn" @click="fetchLogs" title="立即刷新">
-            <RefreshCw :size="14" /> 刷新
-          </button>
+          <button class="btn" @click="fetchLogs" title="立即刷新"><RefreshCw :size="14" /> 刷新</button>
 
           <button
             class="btn"
@@ -38,9 +36,7 @@
             时间
           </button>
 
-          <button class="btn" @click="handleDownload" title="下载日志">
-            <Download :size="14" /> 下载
-          </button>
+          <button class="btn" @click="handleDownload" title="下载日志"><Download :size="14" /> 下载</button>
         </div>
       </Teleport>
 
@@ -82,105 +78,109 @@ const mounted = ref(false);
 let intervalId: number;
 
 const fetchDetail = async () => {
-    try {
-        const data = await request(`/api/containers/${id}`);
-        container.value = data;
+  try {
+    const data = await request(`/api/containers/${id}`);
+    container.value = data;
 
-        // Update header title
-        const name = data.Name.replace('/', '');
-        headerStore.set(`${name} - 日志`, true);
-    } catch (err) {
-        console.error(err);
-    }
+    // Update header title
+    const name = data.Name.replace('/', '');
+    headerStore.set(`${name} - 日志`, true);
+  } catch (err) {
+    console.error(err);
+  }
 };
 
 const fetchLogs = async () => {
-    try {
-        const data = await request(`/api/containers/${id}/logs?tail=${tailLines.value}&timestamps=${showTimestamps.value}`);
-        logs.value = data.logs || '';
-    } catch (err: any) {
-        console.error(err);
-        if (loading.value) toastStore.addToast('获取日志失败', 'error');
-    } finally {
-        loading.value = false;
-    }
+  try {
+    const data = await request(
+      `/api/containers/${id}/logs?tail=${tailLines.value}&timestamps=${showTimestamps.value}`
+    );
+    logs.value = data.logs || '';
+  } catch (err: any) {
+    console.error(err);
+    if (loading.value) toastStore.addToast('获取日志失败', 'error');
+  } finally {
+    loading.value = false;
+  }
 };
 
 const handleDownload = () => {
-    const blob = new Blob([logs.value], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `container-${id}-logs.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const blob = new Blob([logs.value], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `container-${id}-logs.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
 const renderLogs = () => {
-    if (!logs.value) return [];
+  if (!logs.value) return [];
 
-    return logs.value.split('\n').map((line) => {
-        let efficientLine = line;
-        // Remove Docker multiplexing header if present
-        if (efficientLine.length > 8 && efficientLine.charCodeAt(0) < 32) {
-            efficientLine = efficientLine.substring(8);
-        }
+  return logs.value.split('\n').map((line) => {
+    let efficientLine = line;
+    // Remove Docker multiplexing header if present
+    if (efficientLine.length > 8 && efficientLine.charCodeAt(0) < 32) {
+      efficientLine = efficientLine.substring(8);
+    }
 
-        // Parse ANSI codes
-        const ansiData = Anser.ansiToJson(efficientLine, { use_classes: false });
+    // Parse ANSI codes
+    const ansiData = Anser.ansiToJson(efficientLine, { use_classes: false });
 
-        // Build HTML string
-        return ansiData.map((chunk: any) => {
-            const styles = [];
-            if (chunk.fg) styles.push(`color: rgb(${chunk.fg})`);
-            if (chunk.bg) styles.push(`background-color: rgb(${chunk.bg})`);
-            const styleAttr = styles.length > 0 ? ` style="${styles.join('; ')}"` : '';
-            return `<span${styleAttr}>${escapeHtml(chunk.content)}</span>`;
-        }).join('');
-    });
+    // Build HTML string
+    return ansiData
+      .map((chunk: any) => {
+        const styles = [];
+        if (chunk.fg) styles.push(`color: rgb(${chunk.fg})`);
+        if (chunk.bg) styles.push(`background-color: rgb(${chunk.bg})`);
+        const styleAttr = styles.length > 0 ? ` style="${styles.join('; ')}"` : '';
+        return `<span${styleAttr}>${escapeHtml(chunk.content)}</span>`;
+      })
+      .join('');
+  });
 };
 
 const escapeHtml = (text: string) => {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 };
 
 // Watch for changes in tailLines and showTimestamps
 watch([tailLines, showTimestamps], () => {
-    fetchLogs();
+  fetchLogs();
 });
 
 // Watch logs and auto-scroll
 watch(logs, () => {
-    if (autoRefresh.value && logEndRef.value) {
-        setTimeout(() => {
-            logEndRef.value?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-    }
+  if (autoRefresh.value && logEndRef.value) {
+    setTimeout(() => {
+      logEndRef.value?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  }
 });
 
 onMounted(() => {
-    mounted.value = true;
-    fetchDetail();
-    fetchLogs();
+  mounted.value = true;
+  fetchDetail();
+  fetchLogs();
 
-    intervalId = window.setInterval(() => {
-        if (autoRefresh.value) fetchLogs();
-    }, 2000);
+  intervalId = window.setInterval(() => {
+    if (autoRefresh.value) fetchLogs();
+  }, 2000);
 });
 
 onUnmounted(() => {
-    clearInterval(intervalId);
-    headerStore.reset();
+  clearInterval(intervalId);
+  headerStore.reset();
 });
 </script>
 
 <style scoped>
 .container-logs {
-  height: 100%;
+  height: max(360px, 62dvh);
   display: flex;
   flex-direction: column;
 }
@@ -206,7 +206,7 @@ onUnmounted(() => {
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--item-hover);
 }
 
 .btn.active {
@@ -219,7 +219,7 @@ onUnmounted(() => {
   background: #1e1e1e;
   color: #d4d4d4;
   padding: 16px;
-  border-radius: 8px;
+  border-radius: 4px;
   overflow-y: auto;
 
   font-size: 13px;
