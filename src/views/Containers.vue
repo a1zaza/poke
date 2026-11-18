@@ -101,12 +101,15 @@
                     title="该镜像标签暂无更新"
                     >最新</span
                   >
-                  <span
+                  <button
                     v-else-if="updates.states.value[container.Image]?.status === 'error'"
+                    type="button"
                     class="update-badge error"
-                    :title="updates.states.value[container.Image]?.error"
-                    >检测失败</span
+                    :title="`${updates.states.value[container.Image]?.error || '更新检测失败'} 点击查看详情。`"
+                    @click="showUpdateIssue(container.Image)"
                   >
+                    {{ imageUpdateErrorLabel(updates.states.value[container.Image]?.errorCode) }}
+                  </button>
                 </div>
               </td>
               <td>
@@ -183,6 +186,62 @@
         :isDanger="true"
       />
 
+      <Modal
+        :isOpen="!!updateIssue"
+        title="镜像更新检测异常"
+        :onClose="
+          () => {
+            updateIssue = null;
+          }
+        "
+      >
+        <div v-if="updateIssue" class="update-issue">
+          <dl>
+            <div>
+              <dt>操作</dt>
+              <dd>检查镜像更新</dd>
+            </div>
+            <div>
+              <dt>镜像</dt>
+              <dd>{{ updateIssue.image }}</dd>
+            </div>
+            <div v-if="updateIssue.state.registry">
+              <dt>仓库</dt>
+              <dd>{{ updateIssue.state.registry }}</dd>
+            </div>
+            <div>
+              <dt>认证状态</dt>
+              <dd>
+                {{
+                  updateIssue.state.authConfigured === true
+                    ? '已提供认证信息'
+                    : updateIssue.state.authConfigured === false
+                      ? '当前节点未提供认证信息'
+                      : '未返回认证状态'
+                }}
+              </dd>
+            </div>
+          </dl>
+          <p>{{ updateIssue.state.error }}</p>
+          <details v-if="updateIssue.state.details">
+            <summary>Docker 原始错误</summary>
+            <pre tabindex="0">{{ updateIssue.state.details }}</pre>
+          </details>
+        </div>
+        <template #footer>
+          <router-link
+            v-if="
+              updateIssue?.state.errorCode === 'REGISTRY_AUTH_MISSING' ||
+              updateIssue?.state.errorCode === 'REGISTRY_AUTH_FAILED'
+            "
+            class="button secondary"
+            to="/settings"
+            @click="updateIssue = null"
+            >配置仓库与节点授权</router-link
+          >
+          <button class="secondary" @click="updateIssue = null">关闭</button>
+        </template>
+      </Modal>
       <!-- Update Modal -->
       <ConfirmModal
         v-if="updateContainer"
@@ -216,10 +275,16 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import ResourceToolbar from '@/components/ui/ResourceToolbar.vue';
-import { canCheckImage, useImageUpdates } from '@/composables/useImageUpdates';
+import {
+  canCheckImage,
+  useImageUpdates,
+  imageUpdateErrorLabel,
+  type ImageUpdateState
+} from '@/composables/useImageUpdates';
 import { useResourceFilter } from '@/composables/useResourceFilter';
 import DashboardLayout from '@/layouts/DashboardLayout.vue';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import Modal from '@/components/ui/Modal.vue';
 import { useToastStore } from '@/stores/toast';
 import { Play, Square, RotateCw, Trash2, Eye, FileText, Terminal, RefreshCw } from 'lucide-vue-next';
 import { request } from '@/utils/request';
@@ -258,6 +323,11 @@ const actionLoading = ref<string | null>(null);
 const deleteId = ref<string | null>(null);
 const updateContainer = ref<Container | null>(null);
 const updateMessage = ref('');
+const updateIssue = ref<{ image: string; state: ImageUpdateState } | null>(null);
+const showUpdateIssue = (image: string) => {
+  const state = updates.states.value[image];
+  if (state?.status === 'error') updateIssue.value = { image, state: { ...state } };
+};
 const showUnmanagedAlert = ref(false); // New Alert State
 const unmanagedMessage = ref('');
 
@@ -404,3 +474,46 @@ const confirmUpdate = async () => {
   }
 };
 </script>
+
+<style scoped>
+.update-issue dl {
+  margin: 0 0 16px;
+}
+.update-issue dl > div {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.update-issue dt {
+  color: var(--system-gray);
+}
+.update-issue dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.update-issue p {
+  line-height: 1.8;
+}
+.update-issue details {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.update-issue summary {
+  cursor: pointer;
+  color: var(--blue);
+}
+.update-issue pre {
+  margin: 10px 0 0;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--field);
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+</style>

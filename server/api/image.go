@@ -35,6 +35,10 @@ func (h *Handler) CheckImageUpdate(c echo.Context) error {
 	}
 	if res.Error != "" {
 		resp["error"] = res.Error
+		resp["errorCode"] = res.ErrorCode
+		resp["details"] = res.Details
+		resp["registry"] = res.Registry
+		resp["authConfigured"] = res.AuthConfigured
 	}
 
 	return c.JSON(http.StatusOK, resp)

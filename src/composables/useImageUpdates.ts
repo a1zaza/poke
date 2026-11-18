@@ -1,21 +1,38 @@
 import { computed, ref } from 'vue';
 
 export type ImageUpdateStatus = 'checking' | 'available' | 'latest' | 'error';
-interface UpdateState {
+export interface ImageUpdateState {
   status: ImageUpdateStatus;
   error?: string;
   checkedAt?: number;
+  errorCode?: string;
+  details?: string;
+  registry?: string;
+  authConfigured?: boolean;
 }
 interface UpdateResult {
   hasUpdate?: boolean;
   error?: string;
+  errorCode?: string;
+  details?: string;
+  registry?: string;
+  authConfigured?: boolean;
 }
+const issueLabels: Record<string, string> = {
+  REGISTRY_AUTH_MISSING: '未配置认证',
+  REGISTRY_AUTH_FAILED: '认证失败',
+  REGISTRY_IMAGE_NOT_FOUND: '镜像未找到',
+  REGISTRY_ENDPOINT_ERROR: '仓库异常',
+  REGISTRY_CONNECTION_FAILED: '连接失败',
+  LOCAL_IMAGE_INSPECT_FAILED: '本地镜像异常'
+};
+export const imageUpdateErrorLabel = (code?: string) => issueLabels[code || ''] || '检测失败';
 export const canCheckImage = (image: string) =>
   !!image && !image.startsWith('sha256:') && !image.includes('@');
 
 /** One queue per page/node. Polling only schedules missing or expired images. */
 export function useImageUpdates(check: (image: string, signal: AbortSignal) => Promise<UpdateResult>) {
-  const states = ref<Record<string, UpdateState>>({});
+  const states = ref<Record<string, ImageUpdateState>>({});
   const active = ref(0);
   const queued = ref(0);
   const pending = new Set<string>();
@@ -52,7 +69,15 @@ export function useImageUpdates(check: (image: string, signal: AbortSignal) => P
       const result = await check(image, controller.signal);
       if (stopped || controller.signal.aborted || !wanted.has(image)) return;
       states.value[image] = result.error
-        ? { status: 'error', error: result.error, checkedAt: Date.now() }
+        ? {
+            status: 'error',
+            error: result.error,
+            errorCode: result.errorCode,
+            details: result.details,
+            registry: result.registry,
+            authConfigured: result.authConfigured,
+            checkedAt: Date.now()
+          }
         : { status: result.hasUpdate ? 'available' : 'latest', checkedAt: Date.now() };
     } catch (error) {
       if (stopped || controller.signal.aborted || !wanted.has(image)) return;

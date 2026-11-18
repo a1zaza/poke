@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { canCheckImage, useImageUpdates } from './useImageUpdates';
+import { canCheckImage, imageUpdateErrorLabel, useImageUpdates } from './useImageUpdates';
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
 
@@ -133,6 +133,33 @@ describe('镜像更新检测队列', () => {
     await flush();
     expect(check).toHaveBeenCalledTimes(1);
     expect(queue.states.value['app:latest']?.status).toBe('error');
+    queue.stop();
+  });
+  it('保留后端错误分类、认证状态和原始原因，使用对应标签', async () => {
+    const check = vi
+      .fn()
+      .mockResolvedValue({
+        error: '当前节点未提供认证，404 也可能是镜像或代理问题',
+        errorCode: 'REGISTRY_AUTH_MISSING',
+        registry: 'registry.example',
+        authConfigured: false,
+        details: '<html>404 Not Found</html>'
+      });
+    const queue = useImageUpdates(check);
+    queue.sync(['registry.example/team/app:latest']);
+    await flush();
+    const state = queue.states.value['registry.example/team/app:latest'];
+    expect(state).toMatchObject({
+      status: 'error',
+      errorCode: 'REGISTRY_AUTH_MISSING',
+      authConfigured: false,
+      details: '<html>404 Not Found</html>'
+    });
+    expect(imageUpdateErrorLabel(state?.errorCode)).toBe('未配置认证');
+    expect(imageUpdateErrorLabel('REGISTRY_AUTH_FAILED')).toBe('认证失败');
+    expect(imageUpdateErrorLabel('REGISTRY_IMAGE_NOT_FOUND')).toBe('镜像未找到');
+    expect(imageUpdateErrorLabel('REGISTRY_ENDPOINT_ERROR')).toBe('仓库异常');
+    expect(imageUpdateErrorLabel()).toBe('检测失败');
     queue.stop();
   });
 });

@@ -29,16 +29,6 @@
           <strong>{{ sectionTitle }}</strong>
         </div>
         <div class="topbar-actions">
-          <div class="instance-state" :title="currentNode?.name || '在系统设置中添加 Agent 节点'">
-            <span class="status-dot" :class="{ running: currentNode?.status === 'online' }" />
-            <span>{{
-              systemStore.loading && !systemStore.ready
-                ? '正在连接节点'
-                : currentNode?.is_local
-                  ? systemStore.info.hostname
-                  : currentNode?.name || '未选择节点'
-            }}</span>
-          </div>
           <div id="header-action" class="header-actions" />
         </div>
       </header>
@@ -85,7 +75,6 @@ const systemStore = useSystemStore();
 const navigationOpen = ref(false);
 const mobile = ref(false);
 const menuButton = ref<HTMLButtonElement | null>(null);
-const currentNode = computed(() => systemStore.nodes.find((node) => node.id === systemStore.currentNodeId));
 const sections: Record<string, { title: string; label: string; description: string }> = {
   overview: {
     title: '运行概览',
@@ -197,20 +186,6 @@ onUnmounted(() => query?.removeEventListener('change', updateViewport));
   font-weight: 400;
   white-space: nowrap;
 }
-.instance-state {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--system-gray);
-  min-width: 0;
-}
-.instance-state > span:last-child {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .workspace-content {
   flex: 1;
   min-height: 0;
@@ -298,9 +273,6 @@ h1 {
     flex-wrap: wrap;
     gap: 8px;
   }
-  .instance-state > span:last-child {
-    max-width: 140px;
-  }
   .workspace-content {
     padding: 24px 20px 16px;
   }
@@ -323,9 +295,6 @@ h1 {
   .breadcrumb-root {
     display: none;
   }
-  .instance-state > span:last-child {
-    max-width: 120px;
-  }
   .workspace-content {
     padding: 22px 16px 16px;
   }
@@ -335,9 +304,6 @@ h1 {
   }
   h1 {
     font-size: 22px;
-  }
-  .topbar-actions:has(.header-actions:not(:empty)) .instance-state {
-    display: none;
   }
   .header-actions :deep(.header-controls),
   .header-actions :deep(.controls) {

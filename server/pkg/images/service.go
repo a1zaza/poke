@@ -2,6 +2,7 @@ package images
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -20,10 +21,14 @@ import (
 )
 
 type UpdateResult struct {
-	HasUpdate    bool
-	RemoteDigest string
-	LastChecked  time.Time
-	Error        string
+	HasUpdate      bool
+	RemoteDigest   string
+	LastChecked    time.Time
+	Error          string
+	ErrorCode      string
+	Details        string
+	Registry       string
+	AuthConfigured bool
 }
 
 type Service struct {
@@ -163,8 +168,14 @@ func ParseRepositoryInfo(ref string) (string, string, string) {
 }
 
 func (s *Service) CheckUpdate(ctx context.Context, imageName string, force bool) (*UpdateResult, error) {
+	domain, _, _ := ParseRepositoryInfo(imageName)
+	authStr := s.ResolveAuthConfig(ctx, domain)
+	authConfig := s.GetRegistryAuth(ctx, domain)
+	authConfigured := authConfig != nil && (authConfig.Username != "" || authConfig.Password != "")
+	// Credential changes must not reuse another authorization scope's result.
+	cacheKey := fmt.Sprintf("%s:%x", imageName, sha256.Sum256([]byte(authStr)))
 	if !force {
-		if val, ok := s.cache.Load(imageName); ok {
+		if val, ok := s.cache.Load(cacheKey); ok {
 			res := val.(*UpdateResult)
 			if time.Since(res.LastChecked) < 1*time.Hour {
 				return res, nil
@@ -177,20 +188,11 @@ func (s *Service) CheckUpdate(ctx context.Context, imageName string, force bool)
 		ref = ref + ":latest"
 	}
 
-	domain, _, _ := ParseRepositoryInfo(ref)
-	authStr := s.ResolveAuthConfig(ctx, domain)
-
 	// DistributionInspect
 	dist, err := s.docker.DistributionInspect(ctx, ref, authStr)
 	if err != nil {
-		res := &UpdateResult{
-			LastChecked: time.Now(),
-			Error:       err.Error(),
-		}
-		if strings.Contains(err.Error(), "unauthorized") || strings.Contains(err.Error(), "denied") {
-			res.Error = fmt.Sprintf("Auth failed for %s", domain)
-		}
-		s.cache.Store(imageName, res)
+		res := registryCheckFailure(domain, authConfigured, err)
+		s.cache.Store(cacheKey, res)
 		return res, nil
 	}
 
@@ -201,9 +203,11 @@ func (s *Service) CheckUpdate(ctx context.Context, imageName string, force bool)
 	if err != nil {
 		res := &UpdateResult{
 			LastChecked: time.Now(),
-			Error:       "Local image not found",
+			Error:       "远端信息已获取，但无法读取本地镜像进行比较，请确认镜像仍存在且 Docker 可用。",
+			ErrorCode:   "LOCAL_IMAGE_INSPECT_FAILED",
+			Details:     boundedErrorDetails(err), Registry: domain, AuthConfigured: authConfigured,
 		}
-		s.cache.Store(imageName, res)
+		s.cache.Store(cacheKey, res)
 		return res, nil
 	}
 
@@ -223,7 +227,7 @@ func (s *Service) CheckUpdate(ctx context.Context, imageName string, force bool)
 		RemoteDigest: remoteDigest,
 		LastChecked:  time.Now(),
 	}
-	s.cache.Store(imageName, res)
+	s.cache.Store(cacheKey, res)
 
 	return res, nil
 }
