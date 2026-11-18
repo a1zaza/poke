@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"github.com/moby/moby/client"
 	"net/http"
 	"os"
 	"os/exec"
@@ -15,7 +16,8 @@ func (h *Handler) UpdateContainer(c echo.Context) error {
 	id := c.Param("id")
 
 	// 1. Inspect container to find compose project
-	container, err := h.Docker.ContainerInspect(c.Request().Context(), id)
+	inspection, err := h.Docker.ContainerInspect(c.Request().Context(), id, client.ContainerInspectOptions{})
+	container := inspection.Container
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Container not found"})
 	}

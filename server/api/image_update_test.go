@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/client"
 	"github.com/labstack/echo/v4"
+	"github.com/moby/moby/client"
 	"poke/pkg/images"
 )
 
@@ -20,7 +20,7 @@ func (f imageUpdateTransport) RoundTrip(r *http.Request) (*http.Response, error)
 
 func TestUpdateCheckExposesActionableAuthenticationError(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{"message": "unknown: <html><title>404 Not Found</title></html>"})
-	cli, err := client.NewClientWithOpts(client.WithHost("tcp://docker.test:2375"), client.WithVersion("1.44"), client.WithHTTPClient(&http.Client{Transport: imageUpdateTransport(func(r *http.Request) (*http.Response, error) {
+	cli, err := client.New(client.WithHost("tcp://docker.test:2375"), client.WithAPIVersion("1.44"), client.WithHTTPClient(&http.Client{Transport: imageUpdateTransport(func(r *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 500, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(string(body))), Request: r}, nil
 	})}))
 	if err != nil {

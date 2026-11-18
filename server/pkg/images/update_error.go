@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/errdefs"
+	"github.com/containerd/errdefs"
 )
 
 func boundedErrorDetails(err error) string {
@@ -22,7 +22,7 @@ func boundedErrorDetails(err error) string {
 func registryCheckFailure(domain string, configured bool, err error) *UpdateResult {
 	result := &UpdateResult{LastChecked: time.Now(), Registry: domain, AuthConfigured: configured, Details: boundedErrorDetails(err)}
 	text := strings.ToLower(err.Error())
-	authFailed := errdefs.IsUnauthorized(err) || errdefs.IsForbidden(err) || strings.Contains(text, "unauthorized") || strings.Contains(text, "authentication required") || strings.Contains(text, "insufficient_scope") || strings.Contains(text, "forbidden") || strings.Contains(text, "denied")
+	authFailed := errdefs.IsUnauthorized(err) || errdefs.IsPermissionDenied(err) || strings.Contains(text, "unauthorized") || strings.Contains(text, "authentication required") || strings.Contains(text, "insufficient_scope") || strings.Contains(text, "forbidden") || strings.Contains(text, "denied")
 	html := strings.Contains(text, "<html") || strings.Contains(text, "<!doctype html")
 	missingManifest := strings.Contains(text, "manifest unknown") || strings.Contains(text, "manifest_unknown") || strings.Contains(text, "name unknown") || strings.Contains(text, "name_unknown")
 	notFound := errdefs.IsNotFound(err) || missingManifest || strings.Contains(text, "404 not found")

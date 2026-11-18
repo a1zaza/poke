@@ -127,3 +127,9 @@ Controller 保存每个节点的项目源配置、当前版本及已部署版本
 远程项目首版不支持本地 build、env_file、include、extends、label_file、develop 和外部 configs/secrets 文件，也不支持宿主环境变量插值；请使用独立镜像和内联配置，容器内变量用 `$$` 转义。业务 bind mount 仍属于执行主机，移除远程项目不会删除业务目录。
 
 本版 Controller/Agent 协议及节点状态文件不兼容旧方案。按全新环境部署成套版本，不复制旧 Agent 的 identity.json 或 tasks 目录；已有 Docker 业务数据不自动删除或迁移。
+
+## Docker API 兼容
+
+后端使用官方 `github.com/moby/moby/client v0.6.3` 与 `github.com/moby/moby/api v1.57.0`，默认自动协商 Docker Engine API，当前 SDK 支持 API 1.40–1.57。目标守护进程最低要求 API 1.44 时，不再受旧 v24 SDK 的 1.43 上限限制。
+
+一般不要设置 `DOCKER_API_VERSION`。该变量会固定请求版本、覆盖自动协商；如果遗留值为 `1.43`，即使升级 Poke，仍可能被最低要求 1.44 的 Docker 拒绝。升级后应重新创建使用新镜像的 Agent（standalone 则更新 Web 容器），仅升级容器内 Docker CLI 不会更新 Go SDK。

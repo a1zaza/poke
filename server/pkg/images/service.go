@@ -13,9 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/registry"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/registry"
+	"github.com/moby/moby/client"
 
 	"poke/pkg/config"
 )
@@ -192,7 +191,7 @@ func (s *Service) CheckUpdate(ctx context.Context, imageName string, force bool)
 	}
 
 	// DistributionInspect
-	dist, err := s.docker.DistributionInspect(ctx, ref, authStr)
+	dist, err := s.docker.DistributionInspect(ctx, ref, client.DistributionInspectOptions{EncodedRegistryAuth: authStr})
 	if err != nil {
 		res := registryCheckFailure(domain, authConfigured, err)
 		s.cache.Store(cacheKey, res)
@@ -202,7 +201,8 @@ func (s *Service) CheckUpdate(ctx context.Context, imageName string, force bool)
 	remoteDigest := dist.Descriptor.Digest.String()
 
 	// Inspect local
-	localImg, _, err := s.docker.ImageInspectWithRaw(ctx, ref)
+	localResult, err := s.docker.ImageInspect(ctx, ref)
+	localImg := localResult.InspectResponse
 	if err != nil {
 		res := &UpdateResult{
 			LastChecked: time.Now(),
@@ -236,7 +236,8 @@ func (s *Service) CheckUpdate(ctx context.Context, imageName string, force bool)
 }
 
 func (s *Service) RefreshAll(ctx context.Context) {
-	containers, err := s.docker.ContainerList(ctx, types.ContainerListOptions{All: true})
+	containersResult, err := s.docker.ContainerList(ctx, client.ContainerListOptions{All: true})
+	containers := containersResult.Items
 	if err != nil {
 		fmt.Printf("Error listing containers: %v\n", err)
 		return

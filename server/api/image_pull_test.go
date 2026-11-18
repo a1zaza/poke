@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/client"
 	"github.com/labstack/echo/v4"
+	"github.com/moby/moby/client"
 	"poke/pkg/images"
 )
 
@@ -26,7 +26,7 @@ func TestPullImageReportsDockerStreamErrors(t *testing.T) {
 		{"truncated", `{"status":`, 502},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cli, err := client.NewClientWithOpts(client.WithHost("http://docker.example"), client.WithVersion("1.43"), client.WithHTTPClient(&http.Client{Transport: pullTransport(func(*http.Request) (*http.Response, error) {
+			cli, err := client.New(client.WithHost("http://docker.example"), client.WithAPIVersion("1.43"), client.WithHTTPClient(&http.Client{Transport: pullTransport(func(*http.Request) (*http.Response, error) {
 				return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(tc.stream))}, nil
 			})}))
 			if err != nil {

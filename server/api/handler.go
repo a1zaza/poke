@@ -12,13 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/events"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/volume"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/events"
+	"github.com/moby/moby/client"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/volume"
+
 	"github.com/labstack/echo/v4"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
@@ -37,7 +36,7 @@ type Handler struct {
 }
 
 type ContainerListItem struct {
-	types.Container
+	container.Summary
 	IsControlled bool `json:"isControlled"`
 }
 
@@ -97,7 +96,8 @@ func AuthMiddleware() echo.MiddlewareFunc {
 // Container Handlers
 
 func (h *Handler) ListContainers(c echo.Context) error {
-	containers, err := h.Docker.ContainerList(c.Request().Context(), types.ContainerListOptions{All: true})
+	containersResult, err := h.Docker.ContainerList(c.Request().Context(), client.ContainerListOptions{All: true})
+	containers := containersResult.Items
 
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -108,7 +108,7 @@ func (h *Handler) ListContainers(c echo.Context) error {
 		projectName := item.Labels["com.docker.compose.project"]
 		workingDir := item.Labels["com.docker.compose.project.working_dir"]
 		items = append(items, ContainerListItem{
-			Container:    item,
+			Summary:      item,
 			IsControlled: projectName != "" && isManagedProjectDir(workingDir),
 		})
 	}
@@ -118,7 +118,8 @@ func (h *Handler) ListContainers(c echo.Context) error {
 
 func (h *Handler) GetContainer(c echo.Context) error {
 	id := c.Param("id")
-	info, err := h.Docker.ContainerInspect(c.Request().Context(), id)
+	inspection, err := h.Docker.ContainerInspect(c.Request().Context(), id, client.ContainerInspectOptions{})
+	info := inspection.Container
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Container not found"})
 	}
@@ -127,7 +128,7 @@ func (h *Handler) GetContainer(c echo.Context) error {
 
 func (h *Handler) StartContainer(c echo.Context) error {
 	id := c.Param("id")
-	if err := h.Docker.ContainerStart(c.Request().Context(), id, types.ContainerStartOptions{}); err != nil {
+	if _, err := h.Docker.ContainerStart(c.Request().Context(), id, client.ContainerStartOptions{}); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]bool{"success": true})
@@ -135,9 +136,7 @@ func (h *Handler) StartContainer(c echo.Context) error {
 
 func (h *Handler) StopContainer(c echo.Context) error {
 	id := c.Param("id")
-	if err := h.Docker.ContainerStop(c.Request().Context(), id, container.StopOptions{}); err != nil {
-		// Note: V24+ uses container.StopOptions, older uses duration ptr
-		// I will assume V24 usage or generic context
+	if _, err := h.Docker.ContainerStop(c.Request().Context(), id, client.ContainerStopOptions{}); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]bool{"success": true})
@@ -145,7 +144,7 @@ func (h *Handler) StopContainer(c echo.Context) error {
 
 func (h *Handler) RestartContainer(c echo.Context) error {
 	id := c.Param("id")
-	if err := h.Docker.ContainerRestart(c.Request().Context(), id, container.StopOptions{}); err != nil {
+	if _, err := h.Docker.ContainerRestart(c.Request().Context(), id, client.ContainerRestartOptions{}); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]bool{"success": true})
@@ -155,11 +154,11 @@ func (h *Handler) DeleteContainer(c echo.Context) error {
 	id := c.Param("id")
 	force := c.QueryParam("force") == "true"
 
-	opts := types.ContainerRemoveOptions{
+	opts := client.ContainerRemoveOptions{
 		Force: force,
 	}
 
-	if err := h.Docker.ContainerRemove(c.Request().Context(), id, opts); err != nil {
+	if _, err := h.Docker.ContainerRemove(c.Request().Context(), id, opts); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]bool{"success": true})
@@ -177,7 +176,7 @@ func (h *Handler) GetContainerLogs(c echo.Context) error {
 	}
 	timestamps := c.QueryParam("timestamps") == "true"
 
-	options := types.ContainerLogsOptions{
+	options := client.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Tail:       tail,
@@ -215,11 +214,12 @@ func (h *Handler) GetSystemEvents(c echo.Context) error {
 		until = fmt.Sprintf("%d", time.Now().Unix())
 	}
 
-	messages, errs := h.Docker.Events(c.Request().Context(), types.EventsOptions{
+	eventStream := h.Docker.Events(c.Request().Context(), client.EventsListOptions{
 		Since: since,
 		Until: until,
 	})
 
+	messages, errs := eventStream.Messages, eventStream.Err
 	var events []events.Message
 	timeout := time.After(2 * time.Second)
 
@@ -250,7 +250,8 @@ func (h *Handler) GetSystemInfo(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get high-level system info from Docker API
-	dInfo, err := h.Docker.Info(ctx)
+	infoResult, err := h.Docker.Info(ctx, client.InfoOptions{})
+	dInfo := infoResult.Info
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get Docker info: " + err.Error()})
 	}
@@ -260,10 +261,14 @@ func (h *Handler) GetSystemInfo(c echo.Context) error {
 	// hInfo, _ := host.Info() // No longer using host.Info for hostname/platform if user wants Docker API
 
 	// Docker Stats
-	containers, _ := h.Docker.ContainerList(ctx, types.ContainerListOptions{All: true})
-	images, _ := h.Docker.ImageList(ctx, types.ImageListOptions{})
-	networks, _ := h.Docker.NetworkList(ctx, types.NetworkListOptions{})
-	volumes, _ := h.Docker.VolumeList(ctx, volume.ListOptions{})
+	containersResult, _ := h.Docker.ContainerList(ctx, client.ContainerListOptions{All: true})
+	containers := containersResult.Items
+	imagesResult, _ := h.Docker.ImageList(ctx, client.ImageListOptions{})
+	images := imagesResult.Items
+	networksResult, _ := h.Docker.NetworkList(ctx, client.NetworkListOptions{})
+	networks := networksResult.Items
+	volumesResult, _ := h.Docker.VolumeList(ctx, client.VolumeListOptions{})
+	volumes := volume.ListResponse{Volumes: volumesResult.Items, Warnings: volumesResult.Warnings}
 
 	// Helper type for map key
 	type portKey struct {
@@ -307,7 +312,10 @@ func (h *Handler) GetSystemInfo(c echo.Context) error {
 		if c.State == "running" {
 			for _, p := range c.Ports {
 				if p.PublicPort != 0 {
-					ip := p.IP
+					ip := ""
+					if p.IP.IsValid() {
+						ip = p.IP.String()
+					}
 					isV6 := strings.Contains(ip, ":")
 					isAny := ip == "0.0.0.0" || ip == "" || ip == "::"
 
@@ -329,7 +337,7 @@ func (h *Handler) GetSystemInfo(c echo.Context) error {
 							Public:    p.PublicPort,
 							Private:   p.PrivatePort,
 							Proto:     proto,
-							State:     c.State,
+							State:     string(c.State),
 						}
 
 						if _, exists := portMap[key]; !exists {
@@ -338,7 +346,7 @@ func (h *Handler) GetSystemInfo(c echo.Context) error {
 								Public:    p.PublicPort,
 								Private:   p.PrivatePort,
 								Type:      proto, // Base type
-								State:     c.State,
+								State:     string(c.State),
 								hasV4:     false,
 								hasV6:     false,
 							}
@@ -364,17 +372,18 @@ func (h *Handler) GetSystemInfo(c echo.Context) error {
 							Public:    p.PublicPort,
 							Private:   p.PrivatePort,
 							Type:      displayProto,
-							State:     c.State,
+							State:     string(c.State),
 						})
 					}
 				}
 			}
 		} else {
 			// For stopped containers
-			cj, err := h.Docker.ContainerInspect(ctx, c.ID)
+			inspection, err := h.Docker.ContainerInspect(ctx, c.ID, client.ContainerInspectOptions{})
+			cj := inspection.Container
 			if err == nil && cj.HostConfig != nil && cj.HostConfig.PortBindings != nil {
 				for pProto, bindings := range cj.HostConfig.PortBindings {
-					parts := strings.Split(string(pProto), "/")
+					parts := strings.Split(pProto.String(), "/")
 					if len(parts) != 2 {
 						continue
 					}
@@ -387,7 +396,10 @@ func (h *Handler) GetSystemInfo(c echo.Context) error {
 							continue
 						}
 
-						ip := b.HostIP
+						ip := ""
+						if b.HostIP.IsValid() {
+							ip = b.HostIP.String()
+						}
 						isV6 := strings.Contains(ip, ":")
 						isAny := ip == "0.0.0.0" || ip == "" || ip == "::"
 
@@ -405,7 +417,7 @@ func (h *Handler) GetSystemInfo(c echo.Context) error {
 								Public:    uint16(publicPort),
 								Private:   uint16(privatePort),
 								Proto:     protoType,
-								State:     c.State,
+								State:     string(c.State),
 							}
 
 							if _, exists := portMap[key]; !exists {
@@ -414,7 +426,7 @@ func (h *Handler) GetSystemInfo(c echo.Context) error {
 									Public:    uint16(publicPort),
 									Private:   uint16(privatePort),
 									Type:      protoType,
-									State:     c.State,
+									State:     string(c.State),
 									hasV4:     false,
 									hasV6:     false,
 								}
@@ -440,7 +452,7 @@ func (h *Handler) GetSystemInfo(c echo.Context) error {
 								Public:    uint16(publicPort),
 								Private:   uint16(privatePort),
 								Type:      displayProto,
-								State:     c.State,
+								State:     string(c.State),
 							})
 						}
 					}
@@ -514,9 +526,8 @@ func (h *Handler) GetSystemInfo(c echo.Context) error {
 // Image Handlers
 
 func (h *Handler) ListImages(c echo.Context) error {
-	// Import "github.com/docker/docker/api/types/image" if needed?
-	// types.ImageListOptions is in types
-	images, err := h.Docker.ImageList(c.Request().Context(), types.ImageListOptions{})
+	imagesResult, err := h.Docker.ImageList(c.Request().Context(), client.ImageListOptions{})
+	images := imagesResult.Items
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -527,8 +538,7 @@ func (h *Handler) DeleteImage(c echo.Context) error {
 	id := c.Param("id")
 	force := c.QueryParam("force") == "true"
 
-	// Import types "github.com/docker/docker/api/types" for ImageRemoveOptions
-	_, err := h.Docker.ImageRemove(c.Request().Context(), id, types.ImageRemoveOptions{
+	_, err := h.Docker.ImageRemove(c.Request().Context(), id, client.ImageRemoveOptions{
 		Force:         force,
 		PruneChildren: true,
 	})
@@ -551,7 +561,7 @@ func (h *Handler) PullImage(c echo.Context) error {
 	domain, _, _ := images.ParseRepositoryInfo(req.Image)
 	authStr := h.ImageService.ResolveAuthConfig(c.Request().Context(), domain)
 
-	reader, err := h.Docker.ImagePull(c.Request().Context(), req.Image, types.ImagePullOptions{
+	reader, err := h.Docker.ImagePull(c.Request().Context(), req.Image, client.ImagePullOptions{
 		RegistryAuth: authStr,
 	})
 	if err != nil {
@@ -582,25 +592,26 @@ func (h *Handler) PruneImages(c echo.Context) error {
 	all := c.QueryParam("all") == "true"
 
 	// filters
-	f := filters.NewArgs()
+	f := make(client.Filters)
 	if !all {
 		f.Add("dangling", "true")
 	} else {
 		f.Add("dangling", "false")
 	}
 
-	report, err := h.Docker.ImagesPrune(c.Request().Context(), f)
+	report, err := h.Docker.ImagePrune(c.Request().Context(), client.ImagePruneOptions{Filters: f})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	return c.JSON(http.StatusOK, report)
+	return c.JSON(http.StatusOK, report.Report)
 }
 
 // Network Handlers
 
 func (h *Handler) ListNetworks(c echo.Context) error {
-	networks, err := h.Docker.NetworkList(c.Request().Context(), types.NetworkListOptions{})
+	networksResult, err := h.Docker.NetworkList(c.Request().Context(), client.NetworkListOptions{})
+	networks := networksResult.Items
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -609,7 +620,7 @@ func (h *Handler) ListNetworks(c echo.Context) error {
 
 func (h *Handler) RemoveNetwork(c echo.Context) error {
 	id := c.Param("id")
-	if err := h.Docker.NetworkRemove(c.Request().Context(), id); err != nil {
+	if _, err := h.Docker.NetworkRemove(c.Request().Context(), id, client.NetworkRemoveOptions{}); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]bool{"success": true})
@@ -618,19 +629,17 @@ func (h *Handler) RemoveNetwork(c echo.Context) error {
 // Volume Handlers
 
 func (h *Handler) ListVolumes(c echo.Context) error {
-	volumes, err := h.Docker.VolumeList(c.Request().Context(), volume.ListOptions{})
+	volumes, err := h.Docker.VolumeList(c.Request().Context(), client.VolumeListOptions{})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
-	// Return volumes list directly or the object? Frontend expects array or { Volumes: [] }
-	// Go SDK returns volume.ListResponse which has Volumes field.
-	// We will return it as is, and Frontend will parse.
-	return c.JSON(http.StatusOK, volumes)
+	// Keep the existing public Volumes/Warnings response, not the SDK result wrapper.
+	return c.JSON(http.StatusOK, volume.ListResponse{Volumes: volumes.Items, Warnings: volumes.Warnings})
 }
 
 func (h *Handler) RemoveVolume(c echo.Context) error {
 	name := c.Param("name")
-	if err := h.Docker.VolumeRemove(c.Request().Context(), name, true); err != nil {
+	if _, err := h.Docker.VolumeRemove(c.Request().Context(), name, client.VolumeRemoveOptions{Force: true}); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]bool{"success": true})
@@ -638,11 +647,11 @@ func (h *Handler) RemoveVolume(c echo.Context) error {
 
 func (h *Handler) PruneVolumes(c echo.Context) error {
 	// filters
-	report, err := h.Docker.VolumesPrune(c.Request().Context(), filters.Args{})
+	report, err := h.Docker.VolumePrune(c.Request().Context(), client.VolumePruneOptions{})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
-	return c.JSON(http.StatusOK, report)
+	return c.JSON(http.StatusOK, report.Report)
 }
 
 // Settings Handlers
@@ -655,7 +664,8 @@ func (h *Handler) GetSettings(c echo.Context) error {
 	hostname := cfg.System.Hostname
 	if hostname == "" {
 		if h.Docker != nil {
-			info, err := h.Docker.Info(c.Request().Context())
+			infoResult, err := h.Docker.Info(c.Request().Context(), client.InfoOptions{})
+			info := infoResult.Info
 			if err == nil && info.Name != "" {
 				hostname = info.Name
 			}

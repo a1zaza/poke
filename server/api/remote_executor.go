@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/moby/moby/client"
 	"net/http"
 	"os"
 	"os/exec"
@@ -74,7 +75,8 @@ func (e *Executor) Prepare(ctx context.Context, source *cluster.Request) (cluste
 	service := ""
 	if strings.HasPrefix(path, "/api/containers/") && strings.HasSuffix(path, "/update") {
 		id := strings.TrimSuffix(strings.TrimPrefix(path, "/api/containers/"), "/update")
-		container, err := e.Docker.ContainerInspect(ctx, id)
+		inspection, err := e.Docker.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
+		container := inspection.Container
 		if err != nil {
 			return prep, err
 		}

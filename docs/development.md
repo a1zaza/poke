@@ -99,3 +99,7 @@ Fork 后工作流根据仓库名自动生成 GHCR 地址，部署模板中的默
 ## 远程节点协议
 
 协议版本 2：长期 `POKE_NODE_TOKEN`、Controller JSON 租约和任务执行许可、Agent 内存状态。集成测试使用模拟 Executor 与临时回环服务器，不依赖真实 Docker；Compose 准备测试使用临时 CLI 替身验证认证隔离。旧节点状态文件不兼容，请使用独立的新 Controller 测试目录，勿删除现有业务文件。
+
+## Docker SDK
+
+使用分离的 `github.com/moby/moby/client` 与 `github.com/moby/moby/api`，不再使用已弃用的 `github.com/docker/docker`。`client.New(client.FromEnv)` 默认协商 API；`server/main_test.go` 用模拟守护进程覆盖 1.43、1.44、较新版本、客户端上限及显式环境覆盖。`server/api/docker_sdk_test.go` 检查资源响应和端口地址转换，避免 Items 等 SDK 包装结构泄露到前端 API。

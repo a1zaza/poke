@@ -12,9 +12,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/docker/docker/api/types/registry"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/errdefs"
+	"github.com/containerd/errdefs"
+	"github.com/moby/moby/api/types/registry"
+	"github.com/moby/moby/client"
 	"poke/pkg/config"
 )
 
@@ -26,16 +26,17 @@ func TestRegistryCheckFailureClassification(t *testing.T) {
 		err        error
 		code       string
 	}{
-		{"missing auth", false, errdefs.Unauthorized(errors.New("unauthorized")), "REGISTRY_AUTH_MISSING"},
-		{"bad auth", true, errdefs.Unauthorized(errors.New("unauthorized")), "REGISTRY_AUTH_FAILED"},
+		{"missing auth", false, errdefs.ErrUnauthenticated.WithMessage("unauthorized"), "REGISTRY_AUTH_MISSING"},
+		{"bad auth", true, errdefs.ErrUnauthenticated.WithMessage("unauthorized"), "REGISTRY_AUTH_FAILED"},
+		{"permission denied", true, errdefs.ErrPermissionDenied.WithMessage("access blocked"), "REGISTRY_AUTH_FAILED"},
 		{"permission denied", true, errors.New("denied: access forbidden"), "REGISTRY_AUTH_FAILED"},
 		{"token scope denied", true, errors.New("insufficient_scope: authorization failed"), "REGISTRY_AUTH_FAILED"},
 		{"html without auth", false, html404, "REGISTRY_AUTH_MISSING"},
 		{"html with auth", true, html404, "REGISTRY_ENDPOINT_ERROR"},
-		{"not found without auth", false, errdefs.NotFound(errors.New("manifest unknown")), "REGISTRY_AUTH_MISSING"},
-		{"manifest absent", true, errdefs.NotFound(errors.New("manifest unknown")), "REGISTRY_IMAGE_NOT_FOUND"},
+		{"not found without auth", false, errdefs.ErrNotFound.WithMessage("manifest unknown"), "REGISTRY_AUTH_MISSING"},
+		{"manifest absent", true, errdefs.ErrNotFound.WithMessage("manifest unknown"), "REGISTRY_IMAGE_NOT_FOUND"},
 		{"repository absent", true, errors.New("name unknown: repository name not known to registry"), "REGISTRY_IMAGE_NOT_FOUND"},
-		{"unclassified 404", true, errdefs.NotFound(errors.New("404 page not found")), "REGISTRY_ENDPOINT_ERROR"},
+		{"unclassified 404", true, errdefs.ErrNotFound.WithMessage("404 page not found"), "REGISTRY_ENDPOINT_ERROR"},
 		{"dns without auth", false, &net.DNSError{Err: "no such host"}, "REGISTRY_CONNECTION_FAILED"},
 		{"tls", true, errors.New("x509: certificate signed by unknown authority"), "REGISTRY_CONNECTION_FAILED"},
 		{"timeout", true, context.DeadlineExceeded, "REGISTRY_CONNECTION_FAILED"},
@@ -63,7 +64,7 @@ func (f updateTransport) RoundTrip(r *http.Request) (*http.Response, error) { re
 func TestUpdateCheckCredentialScopeAndPublicAccess(t *testing.T) {
 	var checks atomic.Int32
 	digest := "sha256:" + strings.Repeat("a", 64)
-	cli, err := client.NewClientWithOpts(client.WithHost("tcp://docker.test:2375"), client.WithVersion("1.44"), client.WithHTTPClient(&http.Client{Transport: updateTransport(func(r *http.Request) (*http.Response, error) {
+	cli, err := client.New(client.WithHost("tcp://docker.test:2375"), client.WithAPIVersion("1.44"), client.WithHTTPClient(&http.Client{Transport: updateTransport(func(r *http.Request) (*http.Response, error) {
 		status := 200
 		var value interface{}
 		if strings.Contains(r.URL.Path, "/distribution/") {

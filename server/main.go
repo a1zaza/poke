@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/docker/docker/client"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/moby/moby/client"
 	"poke/api"
 	"poke/internal/cluster"
 	"poke/pkg/auth"
@@ -37,7 +37,7 @@ func run() error {
 	if mode != "standalone" && mode != "controller" && mode != "agent" {
 		return errors.New("POKE_MODE 必须是 standalone、controller 或 agent")
 	}
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := newDockerClient()
 	if err != nil {
 		return err
 	}
@@ -126,3 +126,7 @@ func run() error {
 	<-done
 	return nil
 }
+
+// The maintained SDK negotiates automatically. FromEnv still honors an explicit
+// DOCKER_API_VERSION override for deployments that require a fixed version.
+func newDockerClient() (*client.Client, error) { return client.New(client.FromEnv) }

@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/docker/docker/api/types"
 	"github.com/labstack/echo/v4"
+	"github.com/moby/moby/client"
 )
 
 // Project Types
@@ -50,7 +50,8 @@ type UpdateProjectRequest struct {
 // Helpers
 
 func (h *Handler) ListProjects(c echo.Context) error {
-	containers, err := h.Docker.ContainerList(c.Request().Context(), types.ContainerListOptions{All: true})
+	containersResult, err := h.Docker.ContainerList(c.Request().Context(), client.ContainerListOptions{All: true})
+	containers := containersResult.Items
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -83,7 +84,7 @@ func (h *Handler) ListProjects(c echo.Context) error {
 		projectsMap[projectName].Containers = append(projectsMap[projectName].Containers, ProjectContainer{
 			ID:      container.ID,
 			Name:    name,
-			State:   container.State,
+			State:   string(container.State),
 			Status:  container.Status,
 			Service: serviceName,
 			Image:   container.Image,
@@ -156,7 +157,8 @@ func (h *Handler) GetProject(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid project name"})
 	}
 
-	containers, err := h.Docker.ContainerList(c.Request().Context(), types.ContainerListOptions{All: true})
+	containersResult, err := h.Docker.ContainerList(c.Request().Context(), client.ContainerListOptions{All: true})
+	containers := containersResult.Items
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -188,7 +190,7 @@ func (h *Handler) GetProject(c echo.Context) error {
 		project.Containers = append(project.Containers, ProjectContainer{
 			ID:      container.ID,
 			Name:    cName,
-			State:   container.State,
+			State:   string(container.State),
 			Status:  container.Status,
 			Service: serviceName,
 			Image:   container.Image,
@@ -307,7 +309,8 @@ func (h *Handler) ProjectAction(c echo.Context) error {
 	validatedDir, pathErr := validateManagedProjectDir(projectDir)
 	if pathErr != nil && os.IsNotExist(pathErr) {
 		// Fallback: lookup via containers
-		containers, err := h.Docker.ContainerList(c.Request().Context(), types.ContainerListOptions{All: true})
+		containersResult, err := h.Docker.ContainerList(c.Request().Context(), client.ContainerListOptions{All: true})
+		containers := containersResult.Items
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}

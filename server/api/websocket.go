@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
+	"github.com/moby/moby/client"
 	"poke/pkg/auth"
 	"poke/pkg/logger"
 )
@@ -62,15 +62,15 @@ func (h *Handler) Exec(ctx context.Context, ws *websocket.Conn, id string) error
 	logger.Info("CONTAINER_EXEC", "Starting exec for container: %s", id)
 
 	// 1. Create Exec Instance
-	execConfig := types.ExecConfig{
+	execConfig := client.ExecCreateOptions{
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
-		Tty:          true,
+		TTY:          true,
 		Cmd:          []string{"/bin/sh"},
 	}
 
-	execIDResp, err := h.Docker.ContainerExecCreate(ctx, id, execConfig)
+	execIDResp, err := h.Docker.ExecCreate(ctx, id, execConfig)
 	if err != nil {
 		logger.Error("CONTAINER_EXEC", "Error creating exec: %v", err)
 		ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Error creating exec: %v", err)))
@@ -78,9 +78,8 @@ func (h *Handler) Exec(ctx context.Context, ws *websocket.Conn, id string) error
 	}
 
 	// 2. Attach to Exec
-	resp, err := h.Docker.ContainerExecAttach(ctx, execIDResp.ID, types.ExecStartCheck{
-		Detach: false,
-		Tty:    true,
+	resp, err := h.Docker.ExecAttach(ctx, execIDResp.ID, client.ExecAttachOptions{
+		TTY: true,
 	})
 	if err != nil {
 		logger.Error("CONTAINER_EXEC", "Error attaching: %v", err)
@@ -126,7 +125,7 @@ func (h *Handler) Exec(ctx context.Context, ws *websocket.Conn, id string) error
 		if msg.Event == "data" {
 			resp.Conn.Write([]byte(msg.Data))
 		} else if msg.Event == "resize" {
-			h.Docker.ContainerExecResize(ctx, execIDResp.ID, types.ResizeOptions{
+			h.Docker.ExecResize(ctx, execIDResp.ID, client.ExecResizeOptions{
 				Height: uint(msg.Rows),
 				Width:  uint(msg.Cols),
 			})

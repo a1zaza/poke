@@ -68,3 +68,5 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 - Controller 项目源配置按节点/项目保存版本，可离线查看；外部项目需显式导入，导入不立即部署。远程项目暂不支持 build、env_file、include、extends、label_file、develop、外部 configs/secrets 文件及宿主环境插值。运行目录和业务 bind mount 仍在 Agent 主机，移除远程项目不能递归删除业务目录；项目运行文件继续经过路径边界和目录句柄校验。
 
 - 重连握手携带 Agent 内存中的待处理任务 ID，用于处理“Controller 写入成功但 Agent 未收到”的窗口；未授权且丢失接收记录的任务取消，已许可但记录丢失的任务未知，不重发许可。Controller 后台在租约到期时收敛任务，避免 Agent 崩溃后永久等待。仅完整项目部署成功更新已部署版本，停止/拉取/单服务更新不冒充全量部署；单容器更新引用已部署配置版本。
+- Docker SDK 已迁移为 `github.com/moby/moby/client v0.6.3` 和 `github.com/moby/moby/api v1.57.0`，移除旧 Docker v24 SDK 及 distribution replace。新 SDK 默认自动协商，当前支持 API 1.40–1.57；显式 `DOCKER_API_VERSION` 会覆盖协商，遇到旧版本错误应检查该变量。客户端工厂及协商回归在 `server/main.go`、`server/main_test.go`；资源结果必须解包 Items/Container/Info/Report，存储卷保持 Volumes/Warnings，不能将 SDK 包装结构直接返回前端。
+- Docker 官方自 v29 起弃用 `github.com/docker/docker` Go 模块，后续 SDK 应迁移至 `github.com/moby/moby/client` 与 `github.com/moby/moby/api`；版本号与 Docker Engine 版本独立。升级需适配类型及方法签名并保留 API 协商回归，不能只替换版本号。
