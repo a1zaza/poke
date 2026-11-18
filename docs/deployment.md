@@ -15,13 +15,13 @@ Agent 主动连接 Controller，节点身份、配置和任务以 JSON 持久化
 | `PORT` | standalone/controller 的监听端口，默认 80 |
 | `POKE_CONTROLLER_URL` | Agent 访问的 Controller HTTPS 地址，可包含部署子路径 |
 | `POKE_NODE_ID` | 页面生成的稳定节点 ID |
-| `POKE_ENROLLMENT_TOKEN_FILE` | 初次注册或重新注册时，一次性凭据所在文件 |
+| `POKE_ENROLLMENT_TOKEN` | 初次注册或重新注册时的一次性凭据，10 分钟有效 |
 | `POKE_CA_FILE` | 可选，Agent 信任的私有 CA 文件 |
 | `POKE_ALLOW_INSECURE_HTTP=true` | 仅隔离测试环境允许明文 HTTP；默认关闭 |
 
 ## 首次接入
 
-管理员默认用户名为 `admin`。Web 首次初始化成功后，日志会打印一次用户名和随机密码；重启不会重复打印或重置账号。登录需要同时填写用户名和密码，可在“系统设置 → 基本设置”修改用户名。用户名为 1–64 个字符，以中文、字母或数字开头，支持中文、字母、数字、下划线、点、`@` 和连字符；已有配置缺少用户名时会补为 `admin` 并保留原密码。
+管理员默认用户名为 `admin`。Web 首次初始化成功后，日志会打印一次用户名和随机密码；重启不会重复打印或重置账号。登录需要同时填写用户名和密码，可在“基本设置”修改用户名。用户名为 1–64 个字符，以中文、字母或数字开头，支持中文、字母、数字、下划线、点、`@` 和连字符；已有配置缺少用户名时会补为 `admin` 并保留原密码。
 
 仓库提供两份独立 Compose 文件：主节点使用根目录 `compose.yaml`，各从节点使用 `compose.agent.yaml`。两端分别复制 `.env.example` 为本机 `.env`，默认使用 `ghcr.io/a1zaza/poke:latest`；可将 `POKE_IMAGE` 设置为固定版本，例如 `ghcr.io/a1zaza/poke:1.0.0`。Controller 域名需替换为实际地址。
 
@@ -31,23 +31,23 @@ Agent 主动连接 Controller，节点身份、配置和任务以 JSON 持久化
 docker compose -f compose.yaml up -d
 ```
 
-从节点先准备宿主机 `/poke` 目录及 Docker socket，将注册凭据保存到 `/poke/enrollment-token`（权限 `0600`），填写本机 `.env` 中的 Controller 地址和节点 ID，再执行：
+从节点先准备宿主机 `/poke` 目录及 Docker socket，在本机 `.env` 中填写 Controller 地址、节点 ID 和 `POKE_ENROLLMENT_TOKEN`，再执行：
 
 ```bash
 docker compose -f compose.agent.yaml up -d
 ```
 
-两个文件不合并运行。Controller 默认仅管理远程节点，不挂载本机 Docker socket；Agent 无端口映射。Controller 使用独立命名数据卷，Agent 将宿主机 `/poke` 整体映射到容器 `/poke`，身份、任务、项目及注册材料统一保存在该目录。Agent 注册成功后，清空 `POKE_ENROLLMENT_TOKEN_FILE` 并重建该容器，再删除 `/poke/enrollment-token`。
+两个文件不合并运行。Controller 默认仅管理远程节点，不挂载本机 Docker socket；Agent 无端口映射。Controller 使用独立命名数据卷，Agent 将宿主机 `/poke` 整体映射到容器 `/poke`，身份、任务和项目统一保存在该目录。Agent 首次注册成功后，可删除 `.env` 中的 `POKE_ENROLLMENT_TOKEN` 并重建该容器，后续使用持久身份连接。
 
-`.env` 已加入 Git 忽略规则，Agent 数据和注册材料保存在仓库之外的宿主机 `/poke`。模板采用挂载短写语法，启动前应确认 `/poke` 和 Docker socket 存在；不能依赖目录挂载自动生成注册凭据文件。
+`.env` 已加入 Git 忽略规则，不要提交真实注册凭据。Agent 数据保存在仓库之外的宿主机 `/poke`。模板采用挂载短写语法，启动前应确认 `/poke` 和 Docker socket 存在。
 
 1. 以 Controller 模式部署当前 Poke 镜像，持久化 `/poke`。容器监听 80，对外提供受信任的 HTTPS 地址。
 2. HTTPS 入口需支持 `/agent/v1/connect`、`/agent/v1/stream` 和 `/ws/*` 的 WebSocket 升级，空闲连接超时应大于 60 秒。HTTPS 管理入口继续传递 `X-Forwarded-Proto: https` 或使用 `COOKIE_SECURE=true`。
-3. 登录 Controller，进入“系统设置”。需要私有仓库时先保存仓库配置，再在“Agent 节点”输入名称、选择授权仓库并生成注册凭据。
-4. 在 Agent 主机将凭据写入 `/poke/enrollment-token`，权限设为 `0600`，通过 `/poke:/poke` 一并提供给容器。不要把实际凭据写入镜像、仓库、URL 或日志。
-5. 使用同一 Poke 镜像设置 `POKE_MODE=agent`、`POKE_CONTROLLER_URL`、`POKE_NODE_ID` 和 `POKE_ENROLLMENT_TOKEN_FILE`。挂载宿主机 `/poke:/poke` 和 Docker socket；项目自动位于该目录下的 `projects` 子目录，无需额外挂载。无需映射 Agent 端口。建议启用容器运行时 `init` 和失败重启策略。
+3. 登录 Controller，进入“节点与任务”。需要私有仓库时，先在“镜像仓库”保存认证，再回到“节点与任务”输入名称、选择授权仓库并生成注册凭据。
+4. 在 Agent 主机的 `.env` 中填写 `POKE_ENROLLMENT_TOKEN=<临时注册凭据>`。不要把实际凭据写入镜像、仓库、URL 或日志。
+5. 使用同一 Poke 镜像设置 `POKE_MODE=agent`、`POKE_CONTROLLER_URL`、`POKE_NODE_ID` 和 `POKE_ENROLLMENT_TOKEN`。挂载宿主机 `/poke:/poke` 和 Docker socket；项目自动位于该目录下的 `projects` 子目录，无需额外挂载。无需映射 Agent 端口。建议启用容器运行时 `init` 和失败重启策略。
 6. Agent 完成注册、保存身份并主动连接后，页面显示“在线”。选择该节点即可管理 Docker 资源。
-7. 注册成功后可移除注册凭据文件及 `POKE_ENROLLMENT_TOKEN_FILE`，保留 Agent 身份目录。初次注册响应丢失时，应保留原注册材料重试；程序会使用已经落盘的同一注册尝试，避免消耗第二个身份。
+7. 首次注册成功并保存身份后可删除 `POKE_ENROLLMENT_TOKEN` 并重建容器，保留 Agent 身份目录。初次注册响应丢失时，应保留原注册材料重试；程序会使用已经落盘的同一注册尝试，避免消耗第二个身份。
 
 主节点和各 Agent 必须使用不同的数据卷。若更换 Controller 地址或节点 ID，先归档旧 Agent 数据，再使用新的独立数据目录完成注册；程序会拒绝将旧身份静默绑定到新配置。Agent 地址无需配置到 Controller，也不要求 Controller 能直接连接 Agent。若 Compose 项目使用相对路径 bind mount，Agent 内 `/poke/projects` 与 Docker 宿主机的项目路径需要保持一致，避免 Docker 将路径解析到另一位置。
 
@@ -69,7 +69,7 @@ Compose 模板仅保留必要配置；按需在部署副本中增加以下内容
 | Controller 健康检查 | 服务下增加 `healthcheck`，在容器内请求 `http://127.0.0.1:80/health` |
 | Controller 管理本机 Docker | 增加 `POKE_LOCAL_ENABLED: "true"`，并挂载 Docker socket 与 `/poke/projects` |
 
-首次注册后清空 `.env` 中的 `POKE_ENROLLMENT_TOKEN_FILE`，重建 Agent 后可删除注册凭据文件。请保留 Controller 的数据卷，以及 Agent 宿主机 `/poke` 下的数据，以复用原有身份及任务状态。
+首次注册成功后可删除 `.env` 中的 `POKE_ENROLLMENT_TOKEN` 并重建 Agent，无需再次注册。请保留 Controller 的数据卷，以及 Agent 宿主机 `/poke` 下的数据，以复用原有身份及任务状态。
 
 ## 身份和权限管理
 
@@ -85,7 +85,7 @@ Compose 模板仅保留必要配置；按需在部署副本中增加以下内容
 
 远程查询通过控制连接通知 Agent，再由 Agent 主动建立单独的数据连接返回 JSON。终端另用独立的双向数据连接；页面断开后不会重放终端输入。日志保持行数受限的查询方式。
 
-远程修改先记录任务 ID，Agent 保存接收状态后执行。页面等待执行结果，也可在系统设置中查看最近 200 项任务。Agent 将修改操作串行处理，并限制等待队列；重复投递同一任务 ID 不会再次执行。
+远程修改先记录任务 ID，Agent 保存接收状态后执行。页面等待执行结果，也可在“节点与任务”中查看最近 200 项任务。Agent 将修改操作串行处理，并限制等待队列；重复投递同一任务 ID 不会再次执行。
 
 取消操作是尽力而为：尚未开始的任务可标记已取消；执行期间超时、取消或进程崩溃的任务标记“结果待确认”，需要检查实际 Docker 状态。浏览器关闭不会自动取消已经接收的修改任务。Controller 或 Agent 重启后会自动重新连接并补报已保存的终态结果，未确认副作用不会自动重放。
 

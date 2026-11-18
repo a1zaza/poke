@@ -4,7 +4,7 @@
       <Server :size="32" />
       <h2>连接你的第一个节点</h2>
       <p>在系统设置中注册 Agent，即可开始查看资源和管理容器。</p>
-      <router-link class="button primary" to="/settings">前往添加节点<ArrowUpRight :size="15" /></router-link>
+      <router-link class="button primary" to="/nodes">前往添加节点<ArrowUpRight :size="15" /></router-link>
     </section>
     <div v-else-if="loading && !stats" class="overview-state" role="status">
       <LoaderCircle class="spin" :size="24" />
@@ -16,7 +16,7 @@
       <p>{{ error }}</p>
       <div class="header-controls">
         <button class="secondary" @click="fetchStats"><RefreshCw :size="14" />重试连接</button
-        ><router-link to="/settings" class="button secondary">管理节点</router-link>
+        ><router-link to="/nodes" class="button secondary">管理节点</router-link>
       </div>
     </section>
     <div v-else-if="stats" class="dashboard-container">

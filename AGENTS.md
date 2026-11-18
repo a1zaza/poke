@@ -61,3 +61,7 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 - 默认 Logo 的矢量源为 `public/logo.svg`，深蓝圆角底、蓝色立方容器、白色终端符号与薄荷绿连接节点构成标志；修改后同步导出透明背景的 512×512 PNG 到 `public/logo.png` 和 `public/default-logo.png`。页面与 favicon 继续使用动态 `/logo.png`，保留用户上传 Logo 的能力；README 使用 SVG。
 - Vue 模板引用动态 `/logo.png` 时使用绑定属性（如 `:src="'/logo.png'"`），避免 Vite 将静态图片引用改写成 `/logo.png?import` 后被后端 Logo 代理返回 PNG，从而触发模块 MIME 错误。
 - 提交前在 `docs/changelogs/YYYY-MM.md` 记录带时间戳的变更；未明确要求时不执行 Git 操作。
+
+- 系统管理拆为一级菜单：基本设置 `/settings`、镜像仓库 `/registries`、节点与任务 `/nodes`（仅 Controller 显示，直接访问时也校验模式）。基本设置和仓库页分别提交自身字段，禁止互相携带整份配置；节点授权只使用已保存的仓库域名。共享布局在 `src/styles/settings.css`。
+
+- Agent 注册改用环境变量 `POKE_ENROLLMENT_TOKEN`，不再读取注册凭据文件。首次注册成功并持久化 `identity.json` 后，可删除该变量并重建容器，保留原 `/poke` 数据及 Controller 地址、节点 ID；未完成注册时需要保留原 token 重试。

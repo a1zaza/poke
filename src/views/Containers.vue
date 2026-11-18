@@ -235,9 +235,9 @@
               updateIssue?.state.errorCode === 'REGISTRY_AUTH_FAILED'
             "
             class="button secondary"
-            to="/settings"
+            to="/registries"
             @click="updateIssue = null"
-            >配置仓库与节点授权</router-link
+            >配置仓库认证</router-link
           >
           <button class="secondary" @click="updateIssue = null">关闭</button>
         </template>

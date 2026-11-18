@@ -39,12 +39,8 @@ func TestAgentWebSocketsAfterHTTP2Enrollment(t *testing.T) {
 	if err := os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600); err != nil {
 		t.Fatal(err)
 	}
-	invitation := filepath.Join(dir, "enrollment")
-	if err := os.WriteFile(invitation, []byte(secret()), 0600); err != nil {
-		t.Fatal(err)
-	}
 	agent, err := NewAgent(openTestStore(t), &testExecutor{}, AgentOptions{
-		ControllerURL: server.URL, NodeID: randomID(), EnrollmentFile: invitation, CAFile: ca,
+		ControllerURL: server.URL, NodeID: randomID(), EnrollmentToken: secret(), CAFile: ca,
 	})
 	if err != nil {
 		t.Fatal(err)

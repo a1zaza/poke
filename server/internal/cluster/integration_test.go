@@ -123,12 +123,8 @@ func TestAgentOutboundLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	file := filepath.Join(t.TempDir(), "enrollment")
-	if err = os.WriteFile(file, []byte(token), 0600); err != nil {
-		t.Fatal(err)
-	}
 	executor := &testExecutor{cancelled: make(chan struct{}, 1)}
-	agent, err := NewAgent(agentStore, executor, AgentOptions{ControllerURL: server.URL, NodeID: n.ID, EnrollmentFile: file, AllowHTTP: true})
+	agent, err := NewAgent(agentStore, executor, AgentOptions{ControllerURL: server.URL, NodeID: n.ID, EnrollmentToken: token, AllowHTTP: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,12 +333,8 @@ func TestTLSRegistrationAndOriginBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	invitation := filepath.Join(t.TempDir(), "token")
-	if err = os.WriteFile(invitation, []byte(token), 0600); err != nil {
-		t.Fatal(err)
-	}
 	store := openTestStore(t)
-	opts := AgentOptions{ControllerURL: server.URL, NodeID: node.ID, EnrollmentFile: invitation}
+	opts := AgentOptions{ControllerURL: server.URL, NodeID: node.ID, EnrollmentToken: token}
 	if _, err = NewAgent(store, &testExecutor{}, opts); err == nil {
 		t.Fatal("untrusted certificate accepted")
 	}

@@ -22,7 +22,7 @@
         "
         @update:modelValue="handleNodeSwitch($event as string)"
       />
-      <router-link v-else class="node-hint" to="/settings" @click="emit('navigate')"
+      <router-link v-else class="node-hint" to="/nodes" @click="emit('navigate')"
         >添加你的第一个节点 →</router-link
       >
     </div>
@@ -86,6 +86,8 @@ import {
   HardDrive,
   Network,
   Settings,
+  Database,
+  Server,
   LogOut,
   Sun,
   Moon
@@ -195,7 +197,11 @@ const menuGroups = computed(() => {
       label: '系统',
       items: [
         // { id: 'logs', href: '/logs', label: '日志', icon: Activity },
-        { id: 'settings', href: '/settings', label: '系统设置', icon: Settings }
+        { id: 'settings', href: '/settings', label: '基本设置', icon: Settings },
+        { id: 'registries', href: '/registries', label: '镜像仓库', icon: Database },
+        ...(systemStore.info.isController
+          ? [{ id: 'nodes', href: '/nodes', label: '节点与任务', icon: Server }]
+          : [])
       ]
     }
   ];

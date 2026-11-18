@@ -94,7 +94,9 @@ const sections: Record<string, { title: string; label: string; description: stri
   images: { title: '镜像管理', label: '镜像资源', description: '拉取、检查和清理当前节点的容器镜像。' },
   networks: { title: '网络管理', label: '网络资源', description: '查看 Docker 网络、驱动及子网配置。' },
   volumes: { title: '存储卷管理', label: '存储资源', description: '查看持久化数据卷及其挂载信息。' },
-  settings: { title: '系统设置', label: '实例管理', description: '管理实例信息、访问凭据与 Agent 节点。' },
+  settings: { title: '基本设置', label: '控制台管理', description: '设置实例外观与管理员登录凭据。' },
+  registries: { title: '镜像仓库', label: '访问认证', description: '集中管理私有镜像仓库的登录凭据。' },
+  nodes: { title: '节点与任务', label: '集群管理', description: '接入 Agent、分配仓库授权并跟踪远程任务。' },
   logs: { title: '系统日志', label: '运行记录', description: '查看实例的运行记录与事件。' }
 };
 const section = computed(() => sections[route.path.split('/')[1] || 'overview'] || sections.overview!);

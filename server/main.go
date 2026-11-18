@@ -63,7 +63,7 @@ func run() error {
 			return err
 		}
 		service.AuthRoot = authRoot
-		agent, err := cluster.NewAgent(store, api.NewExecutor(handler), cluster.AgentOptions{ControllerURL: os.Getenv("POKE_CONTROLLER_URL"), NodeID: os.Getenv("POKE_NODE_ID"), EnrollmentFile: os.Getenv("POKE_ENROLLMENT_TOKEN_FILE"), CAFile: os.Getenv("POKE_CA_FILE"), AllowHTTP: os.Getenv("POKE_ALLOW_INSECURE_HTTP") == "true"})
+		agent, err := cluster.NewAgent(store, api.NewExecutor(handler), cluster.AgentOptions{ControllerURL: os.Getenv("POKE_CONTROLLER_URL"), NodeID: os.Getenv("POKE_NODE_ID"), EnrollmentToken: os.Getenv("POKE_ENROLLMENT_TOKEN"), CAFile: os.Getenv("POKE_CA_FILE"), AllowHTTP: os.Getenv("POKE_ALLOW_INSECURE_HTTP") == "true"})
 		if err != nil {
 			return err
 		}

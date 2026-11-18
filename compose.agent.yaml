@@ -9,7 +9,7 @@ services:
       POKE_MODE: agent
       POKE_CONTROLLER_URL: ${POKE_CONTROLLER_URL:?}
       POKE_NODE_ID: ${POKE_NODE_ID:?}
-      POKE_ENROLLMENT_TOKEN_FILE: ${POKE_ENROLLMENT_TOKEN_FILE:-}
+      POKE_ENROLLMENT_TOKEN: ${POKE_ENROLLMENT_TOKEN:-}
     volumes:
       - /poke:/poke
       - /var/run/docker.sock:/var/run/docker.sock

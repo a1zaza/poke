@@ -24,8 +24,8 @@ import (
 )
 
 type AgentOptions struct {
-	ControllerURL, NodeID, EnrollmentFile, CAFile string
-	AllowHTTP                                     bool
+	ControllerURL, NodeID, EnrollmentToken, CAFile string
+	AllowHTTP                                      bool
 }
 type identity struct {
 	NodeID         string `json:"node_id"`
@@ -99,20 +99,14 @@ func NewAgent(store *Store, executor Executor, opts AgentOptions) (*Agent, error
 	if a.identity.NodeID != "" && (a.identity.NodeID != opts.NodeID || a.identity.Controller != opts.ControllerURL) {
 		return nil, errors.New("数据目录身份与配置的节点或 Controller 不一致")
 	}
-	var invitation string
-	if opts.EnrollmentFile != "" {
-		data, err := os.ReadFile(opts.EnrollmentFile)
-		if err != nil {
-			return nil, err
-		}
-		invitation = strings.TrimSpace(string(data))
-		if len(invitation) != 64 {
-			return nil, errors.New("注册凭据格式无效")
-		}
+	invitation := strings.TrimSpace(opts.EnrollmentToken)
+	a.Options.EnrollmentToken = ""
+	if invitation != "" && len(invitation) != 64 {
+		return nil, errors.New("注册凭据格式无效")
 	}
 	if a.identity.NodeID == "" || (invitation != "" && digest(invitation) != a.identity.InvitationHash) {
 		if invitation == "" {
-			return nil, errors.New("首次启动需要 POKE_ENROLLMENT_TOKEN_FILE")
+			return nil, errors.New("首次启动需要 POKE_ENROLLMENT_TOKEN")
 		}
 		a.identity = identity{NodeID: opts.NodeID, Controller: opts.ControllerURL, Credential: secret(), Attempt: randomID(), InvitationHash: digest(invitation)}
 		if err = WriteJSON(name, a.identity); err != nil {
@@ -121,7 +115,7 @@ func NewAgent(store *Store, executor Executor, opts AgentOptions) (*Agent, error
 	}
 	if !a.identity.Enrolled {
 		if invitation == "" {
-			return nil, errors.New("未完成注册，需要保留注册凭据文件以重试")
+			return nil, errors.New("未完成注册，需要保留 POKE_ENROLLMENT_TOKEN 以重试")
 		}
 		payload, _ := json.Marshal(map[string]string{"node_id": opts.NodeID, "token": invitation, "attempt": a.identity.Attempt, "credential": a.identity.Credential})
 		req, err := http.NewRequest("POST", a.endpoint("/agent/v1/enroll", false), bytes.NewReader(payload))

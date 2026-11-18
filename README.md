@@ -71,17 +71,17 @@ Controller 可通过 `POKE_LOCAL_ENABLED=true` 同时管理本机 Docker。三�
 docker compose -f compose.yaml up -d
 ```
 
-容器内 Web 端口为 `80`，外部端口按 Compose 映射访问。**默认用户名为 `admin`，首次初始化时用户名与随机密码仅打印一次到服务日志。** 用户名可在系统设置中修改。HTTPS 入口和反向代理设置见[部署文档](docs/deployment.md)。
+容器内 Web 端口为 `80`，外部端口按 Compose 映射访问。**默认用户名为 `admin`，首次初始化时用户名与随机密码仅打印一次到服务日志。** 用户名可在“基本设置”中修改。HTTPS 入口和反向代理设置见[部署文档](docs/deployment.md)。
 
 ### 2. 接入 Agent
 
-在 Controller 的系统设置中注册节点。在目标主机下载 [compose.agent.yaml](compose.agent.yaml) 和 [.env.example](.env.example)，复制为 `.env`，填写 Controller 的 HTTPS 地址、节点 ID 和注册凭据文件，再运行：
+在 Controller 的“节点与任务”中注册节点。在目标主机下载 [compose.agent.yaml](compose.agent.yaml) 和 [.env.example](.env.example)，复制为 `.env`，填写 Controller 的 HTTPS 地址、节点 ID 和临时注册凭据，再运行：
 
 ```bash
 docker compose -f compose.agent.yaml up -d
 ```
 
-Agent 需要可访问的 Docker 守护进程，挂载 `/poke:/poke` 和 Docker socket。项目、身份和任务统一保存在 `/poke` 下；注册凭据权限设为 `0600`，注册成功后按部署文档移除。Controller 与每个 Agent 使用独立的数据目录。
+Agent 需要可访问的 Docker 守护进程，挂载 `/poke:/poke` 和 Docker socket。项目、身份和任务统一保存在 `/poke` 下；注册凭据通过 `POKE_ENROLLMENT_TOKEN` 传入，首次注册成功后可删除该变量并重建容器。Controller 与每个 Agent 使用独立的数据目录。
 
 完整步骤、单机模式、私有 CA、自定义端口和备份方法见 **[部署文档 →](docs/deployment.md)**。
 

@@ -27,7 +27,7 @@
           ref="usernameInput"
           v-model="username"
           type="text"
-          placeholder="默认用户名 admin"
+          placeholder="请输入用户名"
           maxlength="128"
           :disabled="loading"
           autocomplete="username"
@@ -57,7 +57,7 @@
         </button>
         <div class="login-note">
           <KeyRound :size="15" /><span
-            >默认用户名为 admin。首次初始化时会打印用户名和随机密码，请从服务日志获取。</span
+            >首次初始化时会打印用户名和随机密码，请从服务日志获取。</span
           >
         </div>
       </form>
