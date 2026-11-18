@@ -2,6 +2,9 @@ package cluster
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -16,7 +19,7 @@ import (
 
 var ErrProtocolVersion = errors.New("节点协议版本不兼容")
 
-const Version = 1
+const Version = 2
 const MaxBody = 1024 * 1024
 const MaxResult = 256 * 1024
 const MaxFrame = 4 * 1024 * 1024
@@ -26,7 +29,20 @@ type Request struct {
 	Path       string                  `json:"path"`
 	Body       []byte                  `json:"body,omitempty"`
 	Registries []config.RegistryConfig `json:"registries,omitempty"`
+	Project    *ProjectSource          `json:"project,omitempty"`
 }
+type ProjectSource struct {
+	Service          string `json:"service,omitempty"`
+	ID               string `json:"id"`
+	NodeID           string `json:"node_id"`
+	Name             string `json:"name"`
+	Revision         int    `json:"revision"`
+	DeployedRevision int    `json:"deployed_revision"`
+	Content          string `json:"content"`
+	Deleted          bool   `json:"deleted,omitempty"`
+	PendingDelete    bool   `json:"pending_delete,omitempty"`
+}
+
 type Response struct {
 	Status      int    `json:"status"`
 	Body        []byte `json:"body,omitempty"`
@@ -37,16 +53,24 @@ type AgentInfo struct {
 	Platform string `json:"platform"`
 }
 type Frame struct {
-	Info     *AgentInfo `json:"info,omitempty"`
-	Version  int        `json:"version"`
-	Type     string     `json:"type"`
-	ID       string     `json:"id,omitempty"`
-	Stream   string     `json:"stream,omitempty"`
-	Ticket   string     `json:"ticket,omitempty"`
-	Kind     string     `json:"kind,omitempty"`
-	Request  *Request   `json:"request,omitempty"`
-	Response *Response  `json:"response,omitempty"`
-	Task     *Task      `json:"task,omitempty"`
+	Pending      []string   `json:"pending,omitempty"`
+	Session      string     `json:"session,omitempty"`
+	BootID       string     `json:"boot_id,omitempty"`
+	Epoch        uint64     `json:"epoch,omitempty"`
+	Permit       string     `json:"permit,omitempty"`
+	Hash         string     `json:"hash,omitempty"`
+	Domains      []string   `json:"domains,omitempty"`
+	LeaseSeconds int        `json:"lease_seconds,omitempty"`
+	Info         *AgentInfo `json:"info,omitempty"`
+	Version      int        `json:"version"`
+	Type         string     `json:"type"`
+	ID           string     `json:"id,omitempty"`
+	Stream       string     `json:"stream,omitempty"`
+	Ticket       string     `json:"ticket,omitempty"`
+	Kind         string     `json:"kind,omitempty"`
+	Request      *Request   `json:"request,omitempty"`
+	Response     *Response  `json:"response,omitempty"`
+	Task         *Task      `json:"task,omitempty"`
 }
 
 var resource = regexp.MustCompile(`^/api/(?:containers(?:/[^/]+(?:/(?:start|stop|restart|update|logs))?)?|images(?:/(?:pull|check-update|prune|[^/]+))?|networks(?:/[^/]+)?|volumes(?:/[^/]+)?|projects(?:/[^/]+(?:/action)?)?|system/(?:info|events))$`)
@@ -142,7 +166,21 @@ func (p *Peer) Read() (Frame, error) {
 	return f, err
 }
 
+// Preparation resolves a fixed operation without Docker mutations or registry secrets.
+type Preparation struct {
+	Request *Request
+	Domains []string
+	Cleanup func()
+}
 type Executor interface {
+	Prepare(context.Context, *Request) (Preparation, error)
+
 	ServeHTTP(http.ResponseWriter, *http.Request)
 	Exec(context.Context, *websocket.Conn, string) error
+}
+
+func requestHash(r *Request) string {
+	data, _ := json.Marshal(r)
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }

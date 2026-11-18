@@ -27,6 +27,9 @@ type testExecutor struct {
 	cancelled chan struct{}
 }
 
+func (e *testExecutor) Prepare(ctx context.Context, r *Request) (Preparation, error) {
+	return Preparation{Request: r, Domains: requiredDomains(r)}, nil
+}
 func (e *testExecutor) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if r.Method != "GET" && r.URL.Path != "/api/images/check-update" {
@@ -109,7 +112,6 @@ func testRouter(c *Controller) *echo.Echo {
 }
 func TestAgentOutboundLifecycle(t *testing.T) {
 	controllerStore := openTestStore(t)
-	agentStore := openTestStore(t)
 	controller := NewController(controllerStore)
 	defer controller.Close()
 	controller.Registries = func() []config.RegistryConfig {
@@ -124,7 +126,7 @@ func TestAgentOutboundLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	executor := &testExecutor{cancelled: make(chan struct{}, 1)}
-	agent, err := NewAgent(agentStore, executor, AgentOptions{ControllerURL: server.URL, NodeID: n.ID, EnrollmentToken: token, AllowHTTP: true})
+	agent, err := NewAgent(executor, AgentOptions{ControllerURL: server.URL, NodeID: n.ID, NodeToken: token, AllowHTTP: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +146,7 @@ func TestAgentOutboundLifecycle(t *testing.T) {
 		defer controller.mu.Unlock()
 		return controller.sessions[n.ID] != nil && controller.sessions[n.ID].ready
 	})
-	status, data := browserRequest(t, server.Client(), "GET", server.URL+"/api/nodes/"+n.ID+"/api/containers?all=true", "")
+	status, data := browserRequest(t, server.Client(), "GET", server.URL+"/api/nodes/"+n.ID+"/api/networks?all=true", "")
 	if status != 200 || !bytes.Contains(data, []byte(`"credential_available":false`)) || !bytes.Contains(data, []byte(`"query":"all=true"`)) {
 		t.Fatalf("read: %d %s", status, data)
 	}
@@ -157,7 +159,7 @@ func TestAgentOutboundLifecycle(t *testing.T) {
 	if status != 200 || !bytes.Contains(data, []byte(`"credential_available":true`)) {
 		t.Fatalf("update check: %d %s", status, data)
 	}
-	if len(controllerStore.Tasks()) != beforeChecks || len(agentStore.Tasks()) != 0 {
+	if len(controllerStore.Tasks()) != beforeChecks {
 		t.Fatal("read-only update check created a mutation task")
 	}
 	status, data = browserRequest(t, server.Client(), "POST", server.URL+"/api/nodes/"+n.ID+"/api/images/pull", `{"image":"registry.example/team/app"}`)
@@ -179,10 +181,15 @@ func TestAgentOutboundLifecycle(t *testing.T) {
 	controller.mu.Lock()
 	session := controller.sessions[n.ID]
 	controller.mu.Unlock()
-	if err = session.Send(Frame{Type: "task", ID: submitted.ID, Request: &Request{Method: "POST", Path: "/api/containers/demo/start"}}); err != nil {
+	if err = session.send(Frame{Type: "task", ID: submitted.ID, Request: &Request{Method: "POST", Path: "/api/containers/demo/start"}}); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, func() bool { task, _ := agentStore.Task(submitted.ID); return task.Reported })
+	eventually(t, func() bool {
+		agent.mu.Lock()
+		defer agent.mu.Unlock()
+		task := agent.tasks[submitted.ID]
+		return task != nil && task.task.Resolved
+	})
 	if executor.calls.Load() != 1 {
 		t.Fatal("task executed twice")
 	}
@@ -236,7 +243,7 @@ func TestAgentOutboundLifecycle(t *testing.T) {
 		defer next.mu.Unlock()
 		return next.sessions[n.ID] != nil && next.sessions[n.ID].ready
 	})
-	status, _ = browserRequest(t, server.Client(), "GET", server.URL+"/api/nodes/"+n.ID+"/api/containers", "")
+	status, _ = browserRequest(t, server.Client(), "GET", server.URL+"/api/nodes/"+n.ID+"/api/networks", "")
 	if status != 200 {
 		t.Fatalf("read after reconnect: %d", status)
 	}
@@ -244,18 +251,18 @@ func TestAgentOutboundLifecycle(t *testing.T) {
 	if status != 204 {
 		t.Fatalf("revoke: %d", status)
 	}
-	status, _ = browserRequest(t, server.Client(), "GET", server.URL+"/api/nodes/"+n.ID+"/api/containers", "")
+	status, _ = browserRequest(t, server.Client(), "GET", server.URL+"/api/nodes/"+n.ID+"/api/networks", "")
 	if status != 503 {
 		t.Fatalf("revoked node: %d", status)
 	}
-	for _, dir := range []string{controllerStore.dir, filepath.Join(controllerStore.dir, "tasks"), filepath.Join(agentStore.dir, "tasks")} {
+	for _, dir := range []string{controllerStore.dir, filepath.Join(controllerStore.dir, "tasks")} {
 		entries, _ := os.ReadDir(dir)
 		for _, entry := range entries {
 			if entry.IsDir() {
 				continue
 			}
 			raw, _ := os.ReadFile(filepath.Join(dir, entry.Name()))
-			for _, s := range []string{token, agent.identity.Credential, "registry-secret", "unrelated-secret"} {
+			for _, s := range []string{token, agent.Options.NodeToken, "registry-secret", "unrelated-secret"} {
 				if bytes.Contains(raw, []byte(s)) {
 					t.Fatalf("secret leaked to %s", entry.Name())
 				}
@@ -285,29 +292,27 @@ func TestControllerAuthenticationAndOffline(t *testing.T) {
 		t.Fatal("unsafe request accepted")
 	}
 }
-func TestAgentIdentityAndTaskRecovery(t *testing.T) {
+func TestAgentEnvironmentIdentityAndTaskRecovery(t *testing.T) {
+	id, token := randomID(), secret()
+	opts := AgentOptions{ControllerURL: "https://controller.example", NodeID: id, NodeToken: token}
+	a, err := NewAgent(&testExecutor{}, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := NewAgent(&testExecutor{}, opts)
+	if err != nil || a.bootID == b.bootID || a.Options.NodeToken != b.Options.NodeToken {
+		t.Fatal("restart changed logical identity or reused boot")
+	}
+	opts.ControllerURL = "http://controller.example"
+	if _, err := NewAgent(&testExecutor{}, opts); err == nil {
+		t.Fatal("plaintext allowed")
+	}
 	s := openTestStore(t)
-	id := randomID()
-	credential := secret()
-	original := identity{NodeID: id, Controller: "https://controller.example", Credential: credential, Attempt: randomID(), Enrolled: true}
-	if err := WriteJSON(filepath.Join(s.dir, "identity.json"), original); err != nil {
+	task := Task{ID: randomID(), NodeID: id, State: "execution_granted", Permit: randomID(), CreatedAt: time.Now()}
+	if err := s.SaveTask(task); err != nil {
 		t.Fatal(err)
 	}
-	agent, err := NewAgent(s, &testExecutor{}, AgentOptions{ControllerURL: original.Controller, NodeID: id})
-	if err != nil || agent.identity.Credential != credential {
-		t.Fatalf("identity restart %v", err)
-	}
-	if _, err = NewAgent(s, &testExecutor{}, AgentOptions{ControllerURL: "http://controller.example", NodeID: id}); err == nil {
-		t.Fatal("plaintext allowed by default")
-	}
-	if _, err = NewAgent(s, &testExecutor{}, AgentOptions{ControllerURL: "https://other.example", NodeID: id}); err == nil {
-		t.Fatal("identity rebound to another Controller")
-	}
-	task := Task{ID: randomID(), State: "running", NodeID: id, CreatedAt: time.Now()}
-	if err = s.SaveTask(task); err != nil {
-		t.Fatal(err)
-	}
-	if err = s.RecoverTasks(); err != nil {
+	if err := s.RecoverTasks(); err != nil {
 		t.Fatal(err)
 	}
 	task, _ = s.Task(task.ID)
@@ -333,17 +338,21 @@ func TestTLSRegistrationAndOriginBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := openTestStore(t)
-	opts := AgentOptions{ControllerURL: server.URL, NodeID: node.ID, EnrollmentToken: token}
-	if _, err = NewAgent(store, &testExecutor{}, opts); err == nil {
+	opts := AgentOptions{ControllerURL: server.URL, NodeID: node.ID, NodeToken: token}
+	untrusted, err := NewAgent(&testExecutor{}, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = untrusted.client.Get(server.URL); err == nil {
 		t.Fatal("untrusted certificate accepted")
 	}
+	untrusted.client.CloseIdleConnections()
 	ca := filepath.Join(t.TempDir(), "ca.pem")
 	if err = os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600); err != nil {
 		t.Fatal(err)
 	}
 	opts.CAFile = ca
-	agent, err := NewAgent(store, &testExecutor{}, opts)
+	agent, err := NewAgent(&testExecutor{}, opts)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,9 @@
     <div v-else class="project-detail">
       <Teleport to="#header-action" v-if="mounted">
         <div class="header-controls">
+          <button v-if="remoteNode && !project.isControlled" class="secondary" @click="showImport = true">
+            <FileEdit :size="14" />导入配置
+          </button>
           <template v-if="project.isControlled">
             <button class="btn btn-edit" :class="{ active: isEditing }" @click="isEditing = !isEditing">
               <component :is="isEditing ? X : FileEdit" :size="14" style="margin-right: 4px" />
@@ -18,10 +21,29 @@
               :disabled="actionLoading"
             >
               <Save :size="14" />
-              {{ actionLoading ? '正在部署…' : '保存并重新部署' }}
+              {{
+                actionLoading
+                  ? '正在保存…'
+                  : remoteNode && project.actualStateAvailable === false
+                    ? '保存源配置'
+                    : '保存并重新部署'
+              }}
             </button>
           </template>
 
+          <button
+            v-if="
+              remoteNode &&
+              project.isControlled &&
+              !isEditing &&
+              (project.revision !== project.deployedRevision || !totalCount)
+            "
+            class="primary"
+            :disabled="actionLoading || project.actualStateAvailable === false"
+            @click="handleAction('up')"
+          >
+            <Play :size="14" />部署配置
+          </button>
           <template v-if="runningCount < totalCount">
             <button
               class="btn btn-start"
@@ -63,13 +85,23 @@
       <div class="grid">
         <div v-if="!project.isControlled" class="notice-card">
           <Layers :size="16" />
-          <span
+          <span v-if="remoteNode">该项目尚未导入 Controller，请提供完整 Compose 配置后再管理。</span>
+          <span v-else
             >该项目位于 <code>{{ project.workingDir }}</code>，不在受控目录
             <code>/poke/projects</code> 下，无法进行管理。</span
           >
         </div>
 
+        <p v-if="project.actualStateAvailable === false" class="notice-card">
+          节点实际状态暂不可用，当前显示 Controller 保存的源配置。
+        </p>
         <div class="card full-width">
+          <div v-if="project.revision" class="info-row">
+            <span class="label">配置版本</span
+            ><span class="value"
+              >当前 {{ project.revision }} / 已部署 {{ project.deployedRevision || '尚未部署' }}</span
+            >
+          </div>
           <div class="info-row">
             <span class="label">工作目录</span>
             <span class="value monospace">{{ project.workingDir }}</span>
@@ -119,10 +151,29 @@
         @close="showConfirmDown = false"
       />
 
+      <Modal :isOpen="showImport" title="导入项目配置" @close="showImport = false">
+        <p class="settings-hint">
+          导入仅保存源配置，不会立即修改 Docker。后续执行将使用 /poke/projects
+          下的工作目录；请核对相对挂载路径，或改为宿主机绝对路径。暂不支持 build、env_file 等外部依赖。
+        </p>
+        <label class="settings-field"
+          >Compose 配置<textarea v-model="importContent" class="textarea" rows="12" spellcheck="false" />
+        </label>
+        <template #footer
+          ><button class="secondary" @click="showImport = false">取消</button
+          ><button class="primary" :disabled="actionLoading || !importContent.trim()" @click="importProject">
+            保存源配置
+          </button></template
+        >
+      </Modal>
       <ConfirmModal
         :isOpen="showConfirmRemove"
         title="确认移除项目"
-        message="确定要移除此项目吗？这将停止容器并永久删除项目文件夹及 docker-compose.yml 文件。"
+        :message="
+          remoteNode
+            ? '将停止项目并移除 Controller 中的受管配置，保留宿主机业务文件。'
+            : '确定要移除此项目吗？这将停止容器并永久删除项目文件夹及 docker-compose.yml 文件。'
+        "
         :isDanger="true"
         @confirm="handleConfirmRemove"
         @close="showConfirmRemove = false"
@@ -140,11 +191,34 @@ import { useToastStore } from '@/stores/toast';
 import { useHeaderStore } from '@/stores/header';
 import { request } from '@/utils/request';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import Modal from '@/components/ui/Modal.vue';
+import { useSystemStore } from '@/stores/system';
 
 const route = useRoute();
 const router = useRouter();
 const toastStore = useToastStore();
 const headerStore = useHeaderStore();
+const systemStore = useSystemStore();
+const remoteNode = computed(() => systemStore.currentNodeId !== 'local' && !!systemStore.currentNodeId);
+const showImport = ref(false);
+const importContent = ref('');
+async function importProject() {
+  actionLoading.value = true;
+  try {
+    await request(`/api/nodes/${encodeURIComponent(systemStore.currentNodeId)}/projects/import`, {
+      method: 'POST',
+      localOnly: true,
+      body: JSON.stringify({ name, content: importContent.value })
+    });
+    showImport.value = false;
+    toastStore.addToast('源配置已保存，尚未执行部署', 'success');
+    await fetchDetail();
+  } catch (error) {
+    toastStore.addToast(error instanceof Error ? error.message : '导入失败', 'error');
+  } finally {
+    actionLoading.value = false;
+  }
+}
 
 const name = route.params.name as string;
 const project = ref<any>(null);
@@ -207,11 +281,21 @@ const handleAction = async (action: string) => {
 const handleSaveCompose = async () => {
   actionLoading.value = true;
   try {
-    await request(`/api/projects/${name}`, {
-      method: 'PUT',
-      body: JSON.stringify({ content: editedContent.value })
-    });
-    toastStore.addToast('项目配置已更新并重新部署', 'success');
+    const sourceOnly = remoteNode.value && project.value.actualStateAvailable === false;
+    await request(
+      sourceOnly
+        ? `/api/nodes/${encodeURIComponent(systemStore.currentNodeId)}/projects/${encodeURIComponent(name)}/source`
+        : `/api/projects/${name}`,
+      {
+        method: 'PUT',
+        localOnly: sourceOnly,
+        body: JSON.stringify({ content: editedContent.value })
+      }
+    );
+    toastStore.addToast(
+      sourceOnly ? '源配置已保存，待节点在线后部署' : '项目配置已更新并重新部署',
+      'success'
+    );
     isEditing.value = false;
     fetchDetail();
   } catch (err: any) {

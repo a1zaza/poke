@@ -60,7 +60,7 @@ export const request = async <T = any>(path: string, options: RequestOptions = {
   if (!localOnly) {
     const store = useSystemStore();
     if (!store.ready) await store.fetchSystemInfo();
-    if (!store.currentNodeId) throw new Error('请先在系统设置中注册并选择在线节点');
+    if (!store.currentNodeId) throw new Error('请先在节点与任务中添加并选择节点');
     if (store.currentNodeId && store.currentNodeId !== 'local') {
       finalPath = `/api/nodes/${encodeURIComponent(store.currentNodeId)}${path}`;
     }

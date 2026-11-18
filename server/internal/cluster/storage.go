@@ -89,6 +89,8 @@ func readJSON(name string, v any) error {
 	return nil
 }
 
+const LeaseDuration = 60 * time.Second
+
 type Node struct {
 	ID                string    `json:"id"`
 	Name              string    `json:"name"`
@@ -97,31 +99,34 @@ type Node struct {
 	Revoked           bool      `json:"revoked"`
 	CreatedAt         time.Time `json:"created_at"`
 	CredentialHash    string    `json:"credential_hash,omitempty"`
-	EnrollmentHash    string    `json:"enrollment_hash,omitempty"`
-	EnrollmentExpires time.Time `json:"enrollment_expires,omitempty"`
-	Attempt           string    `json:"attempt,omitempty"`
+	CredentialVersion uint64    `json:"credential_version"`
+	BootID            string    `json:"boot_id,omitempty"`
+	Epoch             uint64    `json:"epoch"`
+	LeaseUntil        time.Time `json:"lease_until,omitempty"`
 }
 
 func (n Node) Public() Node {
 	n.Registered = n.CredentialHash != ""
 	n.Registries = append([]string{}, n.Registries...)
 	n.CredentialHash = ""
-	n.EnrollmentHash = ""
-	n.Attempt = ""
 	return n
 }
 
 type Task struct {
-	ID        string    `json:"id"`
-	NodeID    string    `json:"node_id"`
-	Method    string    `json:"method"`
-	Path      string    `json:"path"`
-	State     string    `json:"state"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Response  *Response `json:"response,omitempty"`
-	Reported  bool      `json:"reported,omitempty"`
-	Error     string    `json:"error,omitempty"`
+	ID           string    `json:"id"`
+	NodeID       string    `json:"node_id"`
+	Method       string    `json:"method"`
+	Path         string    `json:"path"`
+	State        string    `json:"state"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Response     *Response `json:"response,omitempty"`
+	BootID       string    `json:"boot_id,omitempty"`
+	Permit       string    `json:"permit,omitempty"`
+	Request      *Request  `json:"request,omitempty"`
+	PreparedHash string    `json:"prepared_hash,omitempty"`
+	Resolved     bool      `json:"resolved,omitempty"`
+	Error        string    `json:"error,omitempty"`
 }
 
 func (t Task) Terminal() bool {
@@ -158,7 +163,7 @@ func OpenStore(dir string) (*Store, error) {
 	var state nodeFile
 	err = readJSON(filepath.Join(dir, "nodes.json"), &state)
 	if err == nil {
-		if state.Version != 1 || state.Nodes == nil {
+		if state.Version != 2 || state.Nodes == nil {
 			return fail(errors.New("节点文件版本或结构无效"))
 		}
 		s.nodes = state.Nodes
@@ -183,17 +188,22 @@ func OpenStore(dir string) (*Store, error) {
 		task.Response = nil
 		s.tasks[task.ID] = task
 	}
+	if err := s.validateProjects(); err != nil {
+		return fail(err)
+	}
 	return s, nil
 }
 func (s *Store) Close() error {
 	if s.lock != nil {
 		syscall.Flock(int(s.lock.Fd()), syscall.LOCK_UN)
-		return s.lock.Close()
+		err := s.lock.Close()
+		s.lock = nil
+		return err
 	}
 	return nil
 }
 func (s *Store) saveNodes(nodes map[string]Node) error {
-	if err := WriteJSON(filepath.Join(s.dir, "nodes.json"), nodeFile{1, nodes}); err != nil {
+	if err := WriteJSON(filepath.Join(s.dir, "nodes.json"), nodeFile{2, nodes}); err != nil {
 		return err
 	}
 	s.nodes = nodes
@@ -214,7 +224,7 @@ func (s *Store) CreateNode(name string, registries []string) (Node, string, erro
 		registries[i] = strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(r), "https://"), "http://"), "/")
 	}
 	token := secret()
-	n := Node{ID: randomID(), Name: name, Registries: append([]string{}, registries...), CreatedAt: time.Now().UTC(), EnrollmentHash: digest(token), EnrollmentExpires: time.Now().Add(10 * time.Minute).UTC()}
+	n := Node{ID: randomID(), Name: name, Registries: append([]string{}, registries...), CreatedAt: time.Now().UTC(), CredentialHash: digest(token), CredentialVersion: 1}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	m := s.copyNodes()
@@ -223,36 +233,6 @@ func (s *Store) CreateNode(name string, registries []string) (Node, string, erro
 		return Node{}, "", err
 	}
 	return n.Public(), token, nil
-}
-func (s *Store) Enroll(id, token, attempt, credential string) error {
-	if !safeID.MatchString(attempt) || len(credential) != 64 {
-		return ErrUnauthorized
-	}
-	if _, err := hex.DecodeString(credential); err != nil {
-		return ErrUnauthorized
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	n, ok := s.nodes[id]
-	if !ok || n.Revoked {
-		return ErrUnauthorized
-	}
-	// Retry is bound to the locally persisted attempt and secret; a consumed token cannot enroll another identity.
-	if n.CredentialHash != "" {
-		if n.Attempt == attempt && matches(credential, n.CredentialHash) {
-			return nil
-		}
-		return ErrUnauthorized
-	}
-	if time.Now().After(n.EnrollmentExpires) || !matches(token, n.EnrollmentHash) {
-		return ErrUnauthorized
-	}
-	n.CredentialHash = digest(credential)
-	n.EnrollmentHash = ""
-	n.Attempt = attempt
-	m := s.copyNodes()
-	m[id] = n
-	return s.saveNodes(m)
 }
 func (s *Store) Authenticate(id, credential string) (Node, error) {
 	s.mu.RLock()
@@ -285,7 +265,7 @@ func (s *Store) Revoke(id string) error {
 	}
 	n.Revoked = true
 	n.CredentialHash = ""
-	n.EnrollmentHash = ""
+	n.CredentialVersion++
 	m := s.copyNodes()
 	m[id] = n
 	return s.saveNodes(m)
@@ -338,25 +318,33 @@ func (s *Store) allTasks() []Task {
 	ts := make([]Task, 0, len(s.tasks))
 	for _, t := range s.tasks {
 		t.Response = nil
+		t.Request = nil
 		ts = append(ts, t)
 	}
 	sort.Slice(ts, func(i, j int) bool { return ts[i].CreatedAt.After(ts[j].CreatedAt) })
 	return ts
 }
 func (s *Store) RecoverTasks() error {
-	for _, t := range s.allTasks() {
-		if !t.Terminal() {
-			t.State = "unknown"
-			t.Error = "进程重启，执行结果待确认；不会自动重放"
-			if err := s.SaveTask(t); err != nil {
-				return err
+	for _, meta := range s.allTasks() {
+		if meta.Terminal() {
+			continue
+		}
+		if err := s.UpdateTask(meta.ID, func(t *Task) {
+			if t.Permit == "" {
+				t.State = "cancelled"
+				t.Error = "Controller 重启，未授权的任务已取消"
+			} else {
+				t.State = "unknown"
+				t.Error = "Controller 重启，执行结果待确认；不会自动重放"
 			}
+		}); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func (s *Store) RenewEnrollment(id string) (string, error) {
+func (s *Store) RotateToken(id string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	n, ok := s.nodes[id]
@@ -365,10 +353,10 @@ func (s *Store) RenewEnrollment(id string) (string, error) {
 	}
 	token := secret()
 	n.Revoked = false
-	n.CredentialHash = ""
-	n.Attempt = ""
-	n.EnrollmentHash = digest(token)
-	n.EnrollmentExpires = time.Now().Add(10 * time.Minute).UTC()
+	n.CredentialHash = digest(token)
+	n.CredentialVersion++
+	n.Epoch++ // Fence existing control/data messages immediately on rotation.
+	// Preserve the old lease: credential rotation cannot stop an in-flight Docker operation.
 	m := s.copyNodes()
 	m[id] = n
 	if err := s.saveNodes(m); err != nil {

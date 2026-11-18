@@ -7,7 +7,7 @@
     </Teleport>
     <div class="settings-stats" aria-label="节点与任务概况">
       <div class="settings-stat">
-        <span>已接入节点</span><strong>{{ nodes.filter((node) => node.status !== 'revoked').length }}</strong>
+        <span>管理节点</span><strong>{{ nodes.filter((node) => node.status !== 'revoked').length }}</strong>
       </div>
       <div class="settings-stat">
         <span>在线节点</span
@@ -16,23 +16,25 @@
       <div class="settings-stat">
         <span>进行中任务</span
         ><strong>{{
-          tasks.filter((task) => ['queued', 'accepted', 'running'].includes(task.state)).length
+          tasks.filter((task) =>
+            ['queued', 'prepared', 'execution_granted', 'accepted', 'running'].includes(task.state)
+          ).length
         }}</strong>
       </div>
     </div>
     <p v-if="initialLoading" class="settings-hint" role="status">正在加载节点与任务…</p>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
-    <section class="enrollment" aria-label="注册新节点">
+    <section class="enrollment" aria-label="添加新节点">
       <div class="enrollment-intro">
         <Server :size="20" />
         <h3>接入新节点</h3>
-        <p>Agent 主动连接 Controller，无需开放入站端口。生成临时凭据，按提示完成接入。</p>
+        <p>Agent 主动连接 Controller，无需开放入站端口。生成长期 Token，按提示完成接入。</p>
       </div>
       <div class="enrollment-fields">
         <div class="enroll-form">
           <label>节点名称<input v-model="name" placeholder="例如：生产环境 · 上海" maxlength="100" /></label
           ><button class="primary" :disabled="busy || !name.trim()" @click="create">
-            <Plus :size="15" />生成注册凭据
+            <Plus :size="15" />生成节点 Token
           </button>
         </div>
         <div v-if="registries.length" class="registry-policy">
@@ -43,19 +45,20 @@
         </div>
       </div>
     </section>
-    <section v-if="invitation" class="invitation" aria-label="一次性注册凭据">
+    <section v-if="invitation" class="invitation" aria-label="长期节点 Token">
       <header>
-        <strong>注册凭据仅本次显示，10 分钟有效</strong
+        <strong>节点 Token 仅本次显示，请长期保留</strong
         ><button class="icon-button" aria-label="关闭并隐藏凭据" @click="invitation = null">
           <X :size="16" />
         </button>
       </header>
-      <p>在 Agent 主机配置以下环境变量，注册凭据填入 <code>POKE_ENROLLMENT_TOKEN</code>。</p>
-      <textarea :value="invitation.token" readonly aria-label="一次性注册凭据" spellcheck="false" />
+      <p>在 Agent 主机配置以下环境变量，节点 Token 填入 <code>POKE_NODE_TOKEN</code>。</p>
+      <textarea :value="invitation.token" readonly aria-label="长期节点 Token" spellcheck="false" />
       <pre tabindex="0" aria-label="Agent 环境变量">{{ instructions }}</pre>
       <p>
         挂载 <code>/poke:/poke</code> 和 Docker socket，使用当前 Poke 镜像。生产连接使用 HTTPS，私有 CA 可通过
-        <code>POKE_CA_FILE</code> 指定。首次注册成功后可删除 POKE_ENROLLMENT_TOKEN，保留 /poke 中的身份数据。
+        <code>POKE_CA_FILE</code> 指定。POKE_NODE_TOKEN 需长期保留；相同 ID 与 Token 仅允许一个活动 Agent
+        实例。
       </p>
     </section>
     <section class="settings-panel node-list-panel" aria-labelledby="node-list-title">
@@ -66,7 +69,7 @@
       <div v-if="!initialLoading && !error && !nodes.length" class="node-empty">
         <Server :size="26" />
         <p>还没有 Agent 节点</p>
-        <small>为新节点生成注册凭据，然后按提示完成接入。</small>
+        <small>为新节点生成节点 Token，然后按提示完成接入。</small>
       </div>
       <div class="node-grid">
         <article v-for="node in nodes" :key="node.id" class="node-card">
@@ -83,7 +86,16 @@
               <dt>仓库授权</dt>
               <dd>{{ node.registries?.join('、') || '未授权私有仓库' }}</dd>
             </div>
+            <div v-if="node.boot_id">
+              <dt>当前实例</dt>
+              <dd>{{ node.boot_id }}</dd>
+            </div>
+            <div v-if="node.duplicate_attempts">
+              <dt>重复连接</dt>
+              <dd>{{ node.duplicate_attempts }} 次，已拒绝重复实例</dd>
+            </div>
           </dl>
+          <p v-if="node.blocked" class="node-warning">存在结果待确认的任务，已暂停此节点的修改操作。</p>
           <details v-if="node.status !== 'revoked'" class="policy-editor">
             <summary>编辑仓库授权</summary>
             <p v-if="!registries.length">请先在“镜像仓库”中添加并保存仓库认证。</p>
@@ -97,7 +109,7 @@
           </details>
           <footer>
             <button class="secondary" :disabled="busy" @click="renew(node.id)">
-              <RefreshCw :size="13" />重新注册</button
+              <RefreshCw :size="13" />轮换 Token</button
             ><button
               v-if="node.status !== 'revoked'"
               class="revoke-button"
@@ -109,7 +121,7 @@
           </footer>
         </article>
       </div>
-      <p class="section-note">重新注册会使旧身份失效；撤销会断开管理连接，已运行的容器继续运行。</p>
+      <p class="section-note">轮换 Token 会使旧身份失效；撤销会断开管理连接，已运行的容器继续运行。</p>
     </section>
     <section class="tasks-section settings-panel" aria-labelledby="tasks-title">
       <header class="section-heading">
@@ -131,18 +143,34 @@
           <p v-if="task.error" class="task-error">{{ task.error }}</p>
         </div>
         <button
-          v-if="['queued', 'running', 'accepted'].includes(task.state)"
+          v-if="['queued', 'prepared', 'execution_granted', 'running', 'accepted'].includes(task.state)"
           class="secondary"
           @click="cancelTask(task.id)"
         >
           请求取消
         </button>
+        <button
+          v-if="task.state === 'unknown' && !task.resolved"
+          class="secondary"
+          :disabled="busy"
+          @click="pendingResolution = task.id"
+        >
+          确认已核实
+        </button>
+        <span v-else-if="task.state === 'unknown' && task.resolved" class="settings-hint">已人工核实</span>
       </article>
     </section>
     <ConfirmModal
+      :isOpen="!!pendingResolution"
+      title="确认已核实执行结果？"
+      message="请先停止原执行实例，确认其不再修改 Docker，并核实资源实际状态。本操作仅解除该任务的修改阻塞，不会重试任务或将其标记为成功。"
+      @confirm="resolveTask"
+      @close="pendingResolution = null"
+    />
+    <ConfirmModal
       :isOpen="!!pendingAction"
-      :title="pendingAction?.kind === 'revoke' ? '撤销此节点？' : '重新注册此节点？'"
-      message="现有管理连接将断开，重新接入需要新的注册凭据。运行中的容器继续运行。"
+      :title="pendingAction?.kind === 'revoke' ? '撤销此节点？' : '轮换此节点的 Token？'"
+      message="现有管理连接将断开，后续连接需要新的节点 Token。运行中的容器继续运行。"
       @confirm="confirmAction"
       @close="pendingAction = null"
     />
@@ -159,7 +187,15 @@ defineProps<{ registries: string[] }>();
 const store = useSystemStore();
 const nodes = ref<ManagedNode[]>([]);
 const tasks = ref<
-  Array<{ id: string; method: string; path: string; state: string; node_id: string; error?: string }>
+  Array<{
+    id: string;
+    method: string;
+    path: string;
+    state: string;
+    node_id: string;
+    error?: string;
+    resolved?: boolean;
+  }>
 >([]);
 const name = ref('');
 const allowed = ref<string[]>([]);
@@ -167,6 +203,7 @@ const edits = ref<Record<string, string[]>>({});
 const error = ref('');
 const busy = ref(false);
 const invitation = ref<{ id: string; token: string } | null>(null);
+const pendingResolution = ref<string | null>(null);
 const pendingAction = ref<{ kind: 'revoke' | 'renew'; id: string } | null>(null);
 let timer: ReturnType<typeof setInterval> | undefined;
 const refreshing = ref(false);
@@ -174,14 +211,16 @@ const initialLoading = ref(true);
 const mounted = ref(false);
 const instructions = computed(
   () =>
-    `POKE_MODE=agent\nPOKE_CONTROLLER_URL=${window.location.origin}\nPOKE_NODE_ID=${invitation.value?.id || ''}\nPOKE_ENROLLMENT_TOKEN=${invitation.value?.token || ''}`
+    `POKE_MODE=agent\nPOKE_CONTROLLER_URL=${window.location.origin}\nPOKE_NODE_ID=${invitation.value?.id || ''}\nPOKE_NODE_TOKEN=${invitation.value?.token || ''}`
 );
 const statusName = (s: string) =>
-  ({ online: '在线', offline: '离线', pending: '等待注册', revoked: '已撤销' })[s] || s;
+  ({ online: '在线', offline: '离线', pending: '等待连接', revoked: '已撤销' })[s] || s;
 const taskName = (s: string) =>
   ({
     queued: '等待接收',
     accepted: '已接收',
+    prepared: '准备执行',
+    execution_granted: '已授权执行',
     running: '执行中',
     succeeded: '成功',
     failed: '失败',
@@ -213,7 +252,7 @@ async function create() {
       localOnly: true,
       body: JSON.stringify({ name: name.value, registries: allowed.value })
     });
-    invitation.value = { id: data.node.id, token: data.enrollment_token };
+    invitation.value = { id: data.node.id, token: data.node_token };
     name.value = '';
     await refresh();
   } catch (e) {
@@ -260,8 +299,8 @@ async function confirmAction() {
     if (action.kind === 'revoke')
       await request(`/api/nodes/${action.id}`, { method: 'DELETE', localOnly: true });
     else {
-      const data = await request(`/api/nodes/${action.id}/enrollment`, { method: 'POST', localOnly: true });
-      invitation.value = { id: action.id, token: data.enrollment_token };
+      const data = await request(`/api/nodes/${action.id}/token`, { method: 'POST', localOnly: true });
+      invitation.value = { id: action.id, token: data.node_token };
     }
     await refresh();
   } catch (e) {
@@ -276,6 +315,24 @@ async function cancelTask(id: string) {
     await refresh();
   } catch (e) {
     error.value = (e as Error).message;
+  }
+}
+async function resolveTask() {
+  const id = pendingResolution.value;
+  pendingResolution.value = null;
+  if (!id) return;
+  busy.value = true;
+  try {
+    await request(`/api/tasks/${id}/resolve`, {
+      method: 'POST',
+      localOnly: true,
+      body: JSON.stringify({ confirmed: true })
+    });
+    await refresh();
+  } catch (e) {
+    error.value = (e as Error).message;
+  } finally {
+    busy.value = false;
   }
 }
 onMounted(() => {
@@ -649,5 +706,14 @@ dd {
   .tasks-section {
     padding: 0 18px 8px;
   }
+}
+.node-warning {
+  color: var(--system-orange);
+  padding: 0 16px 16px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.task-state.execution_granted {
+  color: var(--system-orange);
 }
 </style>

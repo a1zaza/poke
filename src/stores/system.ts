@@ -8,6 +8,9 @@ export interface ManagedNode {
   status: string;
   is_local?: boolean;
   registries?: string[];
+  boot_id?: string;
+  duplicate_attempts?: number;
+  blocked?: boolean;
 }
 
 export const useSystemStore = defineStore('system', () => {

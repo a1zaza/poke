@@ -81,6 +81,9 @@ func (s *Service) PrepareAuthConfigDir(ctx context.Context, projectDir string) (
 	auths := make(map[string]map[string]string)
 	command := exec.CommandContext(ctx, "docker", "compose", "config", "--images")
 	command.Dir = projectDir
+	if env, ok := ctx.Value(cliEnvironmentKey{}).([]string); ok {
+		command.Env = env
+	}
 	output, err := command.Output()
 	if err != nil {
 		cleanup()
@@ -241,4 +244,11 @@ func (s *Service) RefreshAll(ctx context.Context) {
 	for _, c := range containers {
 		_, _ = s.CheckUpdate(ctx, c.Image, false)
 	}
+}
+
+// WithCLIEnvironment prevents Agent authentication variables reaching Compose.
+type cliEnvironmentKey struct{}
+
+func WithCLIEnvironment(ctx context.Context, env []string) context.Context {
+	return context.WithValue(ctx, cliEnvironmentKey{}, append([]string{}, env...))
 }

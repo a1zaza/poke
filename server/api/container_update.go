@@ -7,6 +7,7 @@ import (
 	"os/exec"
 
 	"github.com/labstack/echo/v4"
+	"poke/internal/cluster"
 	"poke/pkg/logger"
 )
 
@@ -33,6 +34,15 @@ func (h *Handler) UpdateContainer(c echo.Context) error {
 
 	// 3. Verify that the Compose working directory is an existing directory
 	// contained by the managed project root and is not a symbolic link.
+	if p := cluster.OperationProject(c.Request().Context()); p != nil {
+		if p.Name != projectName || p.Service != serviceName {
+			return c.JSON(409, map[string]string{"error": "容器所属服务已改变"})
+		}
+		workingDir, err = projectDirForName(p.Name)
+		if err != nil {
+			return c.JSON(400, map[string]string{"error": "项目名称无效"})
+		}
+	}
 	workingDir, err = validateManagedProjectDir(workingDir)
 	if err != nil {
 		logger.Warn("UPDATE", "Rejected unmanaged project path: %s", workingDir)
@@ -59,7 +69,11 @@ func (h *Handler) UpdateContainer(c echo.Context) error {
 		cmd := exec.CommandContext(c.Request().Context(), name, args...)
 		cmd.Dir = workingDir
 		if dockerConfigDir != "" {
-			cmd.Env = append(os.Environ(), "DOCKER_CONFIG="+dockerConfigDir)
+			env := os.Environ()
+			if cluster.OperationProject(c.Request().Context()) != nil {
+				env = remoteEnvironment()
+			}
+			cmd.Env = append(env, "DOCKER_CONFIG="+dockerConfigDir)
 		}
 		return cmd.CombinedOutput()
 	}

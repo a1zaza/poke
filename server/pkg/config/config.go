@@ -83,6 +83,11 @@ func init() {
 	configDir := "/poke"
 	configFile = filepath.Join(configDir, "config.json")
 	secretsFile = filepath.Join(configDir, "secrets.json")
+	// Agents receive operation-scoped configuration from the Controller and must
+	// not create a local configuration directory during package initialization.
+	if os.Getenv("POKE_MODE") == "agent" {
+		return
+	}
 
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		// Try to create /poke

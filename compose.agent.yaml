@@ -9,7 +9,9 @@ services:
       POKE_MODE: agent
       POKE_CONTROLLER_URL: ${POKE_CONTROLLER_URL:?}
       POKE_NODE_ID: ${POKE_NODE_ID:?}
-      POKE_ENROLLMENT_TOKEN: ${POKE_ENROLLMENT_TOKEN:-}
+      POKE_NODE_TOKEN: ${POKE_NODE_TOKEN:?}
+    tmpfs:
+      - /tmp
     volumes:
       - /poke:/poke
       - /var/run/docker.sock:/var/run/docker.sock

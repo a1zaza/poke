@@ -95,3 +95,7 @@ Fork 后工作流根据仓库名自动生成 GHCR 地址，部署模板中的默
 - 保留项目 Logo 和必要静态资源；界面字体与 v2way 一致，使用 `src/assets/fonts/` 下的 Consolas 与霞鹜文楷，通过本地 Web 字体加载，终端采用同一字体栈。
 - 第三方包名、来源链接和必要的许可证说明属于依赖信息，不作为个人数据删除。
 - 提交前在 `docs/changelogs/YYYY-MM.md` 记录带时间戳的变更；不将临时调查、会话记录或过时方案作为当前文档。
+
+## 远程节点协议
+
+协议版本 2：长期 `POKE_NODE_TOKEN`、Controller JSON 租约和任务执行许可、Agent 内存状态。集成测试使用模拟 Executor 与临时回环服务器，不依赖真实 Docker；Compose 准备测试使用临时 CLI 替身验证认证隔离。旧节点状态文件不兼容，请使用独立的新 Controller 测试目录，勿删除现有业务文件。

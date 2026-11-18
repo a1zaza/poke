@@ -29,18 +29,12 @@ func TestEnrollmentPersistenceAndRevocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	credential, attempt := secret(), randomID()
-	if err = s.Enroll(n.ID, "wrong", attempt, credential); err == nil {
-		t.Fatal("invalid invitation accepted")
+	credential := token
+	if _, err := s.Authenticate(n.ID, "wrong"); err == nil {
+		t.Fatal("invalid token accepted")
 	}
-	if err = s.Enroll(n.ID, token, attempt, credential); err != nil {
+	if _, err := s.Authenticate(n.ID, token); err != nil {
 		t.Fatal(err)
-	}
-	if err = s.Enroll(n.ID, token, attempt, credential); err != nil {
-		t.Fatalf("lost enrollment response retry: %v", err)
-	}
-	if err = s.Enroll(n.ID, token, randomID(), secret()); err == nil {
-		t.Fatal("invitation reused by another identity")
 	}
 	data, err := os.ReadFile(filepath.Join(dir, "nodes.json"))
 	if err != nil {
@@ -59,7 +53,7 @@ func TestEnrollmentPersistenceAndRevocation(t *testing.T) {
 	if err != nil || !auth.Registered {
 		t.Fatalf("restart: %+v %v", auth, err)
 	}
-	if auth.CredentialHash != "" || auth.Attempt != "" {
+	if auth.CredentialHash != "" {
 		t.Fatal("private identity leaked")
 	}
 	auth.Registries[0] = "changed"
@@ -73,14 +67,14 @@ func TestEnrollmentPersistenceAndRevocation(t *testing.T) {
 	if _, err = s.Authenticate(n.ID, credential); err == nil {
 		t.Fatal("revoked identity accepted")
 	}
-	next, err := s.RenewEnrollment(n.ID)
+	next, err := s.RotateToken(n.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = s.Enroll(n.ID, token, attempt, credential); err == nil {
-		t.Fatal("old identity resurrected")
+	if _, err = s.Authenticate(n.ID, token); err == nil {
+		t.Fatal("old token resurrected")
 	}
-	if err = s.Enroll(n.ID, next, randomID(), secret()); err != nil {
+	if _, err = s.Authenticate(n.ID, next); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -93,7 +87,7 @@ func TestJSONCorruptionLockAndRecovery(t *testing.T) {
 	if _, err = OpenStore(dir); err == nil {
 		t.Fatal("two writers accepted")
 	}
-	task := Task{ID: randomID(), NodeID: randomID(), State: "running", CreatedAt: time.Now()}
+	task := Task{ID: randomID(), NodeID: randomID(), State: "execution_granted", Permit: randomID(), CreatedAt: time.Now()}
 	if err = s.SaveTask(task); err != nil {
 		t.Fatal(err)
 	}
@@ -156,23 +150,25 @@ func TestConcurrentNodeCreationAndAtomicFailure(t *testing.T) {
 		t.Fatal("failed write published in memory")
 	}
 	public, _ := json.Marshal(s.Nodes())
-	if bytes.Contains(public, []byte("enrollment_hash")) {
+	if bytes.Contains(public, []byte("credential_hash")) {
 		t.Fatal("hash leaked through public view")
 	}
 }
-func TestExpiredEnrollmentAndInvalidTasks(t *testing.T) {
+func TestLongTermTokenAndInvalidTasks(t *testing.T) {
 	s := openTestStore(t)
-	n, token, err := s.CreateNode("过期", nil)
+	n, token, err := s.CreateNode("长期节点", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored := s.nodes[n.ID]
-	stored.EnrollmentExpires = time.Now().Add(-time.Second)
-	s.nodes[n.ID] = stored
-	if err = s.Enroll(n.ID, token, randomID(), secret()); err == nil {
-		t.Fatal("expired invitation accepted")
+	n.CreatedAt = time.Now().Add(-365 * 24 * time.Hour)
+	if _, err := s.Authenticate(n.ID, token); err != nil {
+		t.Fatal("long term token rejected", err)
 	}
-	if err = s.SaveTask(Task{ID: "../../outside"}); err == nil {
+	other, _, _ := s.CreateNode("其他节点", nil)
+	if _, err := s.Authenticate(other.ID, token); err == nil {
+		t.Fatal("token reused for other node")
+	}
+	if err := s.SaveTask(Task{ID: "../../outside"}); err == nil {
 		t.Fatal("unsafe task path")
 	}
 }

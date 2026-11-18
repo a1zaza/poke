@@ -14,12 +14,12 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func TestAgentWebSocketsAfterHTTP2Enrollment(t *testing.T) {
-	var enrollmentProtocol atomic.Int32
+func TestAgentWebSocketsAfterHTTP2Request(t *testing.T) {
+	var httpProtocol atomic.Int32
 	upgrader := websocket.Upgrader{}
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/agent/v1/enroll" {
-			enrollmentProtocol.Store(int32(r.ProtoMajor))
+		if r.URL.Path == "/http2-probe" {
+			httpProtocol.Store(int32(r.ProtoMajor))
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -39,15 +39,20 @@ func TestAgentWebSocketsAfterHTTP2Enrollment(t *testing.T) {
 	if err := os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600); err != nil {
 		t.Fatal(err)
 	}
-	agent, err := NewAgent(openTestStore(t), &testExecutor{}, AgentOptions{
-		ControllerURL: server.URL, NodeID: randomID(), EnrollmentToken: secret(), CAFile: ca,
+	agent, err := NewAgent(&testExecutor{}, AgentOptions{
+		ControllerURL: server.URL, NodeID: randomID(), NodeToken: secret(), CAFile: ca,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer agent.client.CloseIdleConnections()
-	if enrollmentProtocol.Load() != 2 {
-		t.Fatal("registration did not negotiate HTTP/2; regression condition was not exercised")
+	resp, err := agent.client.Get(server.URL + "/http2-probe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if httpProtocol.Load() != 2 {
+		t.Fatal("HTTP request did not negotiate HTTP/2; regression condition was not exercised")
 	}
 
 	for _, path := range []string{"/agent/v1/connect", "/agent/v1/stream"} {
@@ -59,7 +64,7 @@ func TestAgentWebSocketsAfterHTTP2Enrollment(t *testing.T) {
 				defer response.Body.Close()
 			}
 			if err != nil {
-				t.Fatalf("WebSocket after HTTP/2 registration: %v", err)
+				t.Fatalf("WebSocket after HTTP/2 request: %v", err)
 			}
 			defer conn.Close()
 			if response.ProtoMajor != 1 || response.StatusCode != http.StatusSwitchingProtocols {

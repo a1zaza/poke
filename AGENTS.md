@@ -31,21 +31,21 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 
 - 2026-11-17 已修复 Compose 文件符号链接越界及同站异源修改请求问题，依赖已更新；登录限速按用户要求暂不处理。
 - 配置或节点 JSON 损坏时拒绝启动，应从备份修复，不得用空状态覆盖。
-- Controller 和各 Agent 使用独立的持久化目录，角色目录的 `state.lock` 防止多实例并写。
+- Controller 使用独立 JSON 持久化目录和 `state.lock` 防止多实例并写；Agent 不初始化配置、身份或任务 Store。
 - 默认配置目录为 `/poke`；无法创建时回退到当前工作目录下的 `data`。这些文件不得提交。
 - 只读主目录环境中，可将 `GOCACHE`、`GOMODCACHE` 指向可写缓存目录。
-- Controller 地址或节点 ID 改变时，需使用新的独立 Agent 数据目录注册，不能静默复用原身份。
+- Agent 通过 `POKE_CONTROLLER_URL`、`POKE_NODE_ID`、长期 `POKE_NODE_TOKEN` 启动；更换身份前停止原实例并核实在途任务，不从 Agent 数据目录恢复身份。
 
 # 其他备忘
 
 - 镜像地址为 `ghcr.io/a1zaza/poke`；`.github/workflows/docker.yml` 原生构建 amd64/arm64 后合并发布。main 更新 latest，版本标签发布对应版本，PR 仅构建。工作流使用 GITHUB_TOKEN，关闭构建记录 artifact 上传，禁止改回跨任务 artifact 传递。
 
 - 持久化仅使用 JSON，不引入数据库依赖。私有文件为 `0600`，采用同目录临时文件、文件同步和原子重命名。
-- 每个节点使用独立身份；Controller 只保存凭据摘要。注册凭据有效期为 10 分钟，普通重启复用已保存身份。
-- Agent 的 HTTP Transport 与 WebSocket Dialer 必须使用独立克隆的 TLS 配置；HTTP 可协商 HTTP/2，WebSocket 的 ALPN 仅允许 `http/1.1`。共享配置会使 HTTP 注册写入的 `h2` 污染控制和数据通道，触发 malformed HTTP response；保留 HTTP/2 注册后的双通道回归测试。
+- 每个节点使用稳定 ID 和长期 Token；Controller 只保存摘要。相同 ID/Token 视为同一节点，同进程重连可替换连接，不同进程在有效租约内拒绝抢占。租约、会话代数和凭据版本以 JSON 持久保存；心跳 20 秒，Controller 租约 60 秒，Agent 使用保守单调期限。
+- Agent 的 HTTP Transport 与 WebSocket Dialer 必须使用独立克隆的 TLS 配置；HTTP 可协商 HTTP/2，WebSocket 的 ALPN 仅允许 `http/1.1`。共享配置会使 HTTP 请求写入的 `h2` 污染控制和数据通道，触发 malformed HTTP response；保留 HTTP/2 请求后的双通道回归测试。
 - 修改任务按任务 ID 去重；执行中断或取消后结果不明时，不得自动重放。
 - `POST /api/images/check-update` 是只读检测，Controller 保留仓库授权并通过查询数据通道执行，不创建持久化修改任务；拉取、清理、容器更新等操作继续走原任务队列及限额。
-- 仓库凭据按节点授权和操作上下文隔离。Compose 使用临时私有 `DOCKER_CONFIG`，结束及 Agent 重启时清理。
+- 仓库凭据在即将执行时按实际镜像域名与节点授权筛选，随唯一执行许可下发，不写任务 JSON；只读更新检测按本次镜像域名下发。Compose 使用临时私有 `DOCKER_CONFIG`，Agent 模板 `/tmp` 为 tmpfs，结束后清理；Compose 子进程环境必须过滤 POKE_NODE_TOKEN 等控制面秘密。
 - 私有仓库更新检测失败时，先确认已在“镜像仓库”保存认证，并在对应 Agent 的“仓库授权”中勾选该域名；仓库代理可能将未认证请求返回为 nginx HTML 404，不能据此直接判定镜像或标签不存在。配置后使用“检查更新”显式重检。
 - 更新检测错误返回 `errorCode`、`registry`、`authConfigured` 和受限长度的 `details`；没有凭据但匿名检测成功的公开镜像不得标记为缺少认证。未提供凭据且遇到认证拒绝或 404 时提示配置/授权，并保留镜像或代理异常的可能性；已提供凭据时区分认证、已知 manifest 缺失、连接及仓库入口错误。原始 HTML 仅以纯文本展示，检测缓存按凭据摘要隔离。
 - 所有项目文件操作必须经过 `server/api/project_path.go` 的路径边界校验；项目名最长 64 位，允许 ASCII 字母、数字、点、下划线和连字符，首字符为字母或数字。
@@ -64,4 +64,7 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 
 - 系统管理拆为一级菜单：基本设置 `/settings`、镜像仓库 `/registries`、节点与任务 `/nodes`（仅 Controller 显示，直接访问时也校验模式）。基本设置和仓库页分别提交自身字段，禁止互相携带整份配置；节点授权只使用已保存的仓库域名。共享布局在 `src/styles/settings.css`。
 
-- Agent 注册改用环境变量 `POKE_ENROLLMENT_TOKEN`，不再读取注册凭据文件。首次注册成功并持久化 `identity.json` 后，可删除该变量并重建容器，保留原 `/poke` 数据及 Controller 地址、节点 ID；未完成注册时需要保留原 token 重试。
+- Agent 协议版本 2，使用长期环境变量 `POKE_NODE_TOKEN`，不支持旧临时注册协议和旧节点状态文件。Controller 保存节点、租约、任务及项目版本 JSON；Agent 仅保留内存队列、去重和待确认结果，不写身份/任务文件。已可能送达的执行许可不得重发，未知任务冻结节点修改；人工解除前须停止原实例并核实资源，确认不会自动重试或标记成功。
+- Controller 项目源配置按节点/项目保存版本，可离线查看；外部项目需显式导入，导入不立即部署。远程项目暂不支持 build、env_file、include、extends、label_file、develop、外部 configs/secrets 文件及宿主环境插值。运行目录和业务 bind mount 仍在 Agent 主机，移除远程项目不能递归删除业务目录；项目运行文件继续经过路径边界和目录句柄校验。
+
+- 重连握手携带 Agent 内存中的待处理任务 ID，用于处理“Controller 写入成功但 Agent 未收到”的窗口；未授权且丢失接收记录的任务取消，已许可但记录丢失的任务未知，不重发许可。Controller 后台在租约到期时收敛任务，避免 Agent 崩溃后永久等待。仅完整项目部署成功更新已部署版本，停止/拉取/单服务更新不冒充全量部署；单容器更新引用已部署配置版本。

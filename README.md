@@ -75,13 +75,13 @@ docker compose -f compose.yaml up -d
 
 ### 2. 接入 Agent
 
-在 Controller 的“节点与任务”中注册节点。在目标主机下载 [compose.agent.yaml](compose.agent.yaml) 和 [.env.example](.env.example)，复制为 `.env`，填写 Controller 的 HTTPS 地址、节点 ID 和临时注册凭据，再运行：
+在 Controller 的“节点与任务”中注册节点。在目标主机下载 [compose.agent.yaml](compose.agent.yaml) 和 [.env.example](.env.example)，复制为 `.env`，填写 Controller 的 HTTPS 地址、节点 ID 和长期节点 Token，再运行：
 
 ```bash
 docker compose -f compose.agent.yaml up -d
 ```
 
-Agent 需要可访问的 Docker 守护进程，挂载 `/poke:/poke` 和 Docker socket。项目、身份和任务统一保存在 `/poke` 下；注册凭据通过 `POKE_ENROLLMENT_TOKEN` 传入，首次注册成功后可删除该变量并重建容器。Controller 与每个 Agent 使用独立的数据目录。
+Agent 需要可访问的 Docker 守护进程，挂载 `/poke:/poke` 和 Docker socket。Controller 保存项目源配置、节点和任务 JSON；Agent `/poke` 仅存放执行材料和业务目录。节点凭据通过 `POKE_NODE_TOKEN` 长期传入，不能在连接成功后删除；同一身份仅允许一个活动实例。Controller 与每个 Agent 使用独立的数据目录。
 
 完整步骤、单机模式、私有 CA、自定义端口和备份方法见 **[部署文档 →](docs/deployment.md)**。
 

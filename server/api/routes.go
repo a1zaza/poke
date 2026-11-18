@@ -4,6 +4,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"net/http"
+	"poke/internal/cluster"
+	"poke/pkg/images"
 )
 
 // RegisterResources exposes only the bounded Docker/Compose operation surface.
@@ -38,13 +40,21 @@ func RegisterResources(g *echo.Group, h *Handler) {
 
 type Executor struct {
 	*Handler
-	Router *echo.Echo
+	Router     *echo.Echo
+	remoteRoot string
 }
 
 func NewExecutor(h *Handler) *Executor {
 	e := echo.New()
 	e.Use(middleware.Recover())
 	RegisterResources(e.Group("/api"), h)
-	return &Executor{Handler: h, Router: e}
+	return &Executor{Handler: h, Router: e, remoteRoot: managedProjectsRoot}
 }
-func (e *Executor) ServeHTTP(w http.ResponseWriter, r *http.Request) { e.Router.ServeHTTP(w, r) }
+func (e *Executor) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if p := cluster.OperationProject(r.Context()); p != nil && r.Method != "GET" {
+		r = r.WithContext(images.WithCLIEnvironment(r.Context(), remoteEnvironment()))
+		e.remoteProject(w, r, p)
+		return
+	}
+	e.Router.ServeHTTP(w, r)
+}

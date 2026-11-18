@@ -46,24 +46,14 @@ func run() error {
 	service := images.NewService(cli)
 	handler := &api.Handler{Docker: cli, ImageService: service, Mode: mode, LocalEnabled: localEnabled}
 	if mode == "agent" {
-		store, err := cluster.OpenStore(filepath.Join(config.Directory(), "agent"))
+		// Runtime authentication only; no Agent identity or task store.
+		authRoot, err := os.MkdirTemp("", "poke-agent-auth-")
 		if err != nil {
 			return err
 		}
-		defer store.Close()
-		if err = store.RecoverTasks(); err != nil {
-			return err
-		}
-		// The role directory is exclusively locked; leftover operation secrets belong to a stopped process.
-		authRoot := filepath.Join(config.Directory(), "agent", "runtime-auth")
-		if err = os.RemoveAll(authRoot); err != nil {
-			return err
-		}
-		if err = os.MkdirAll(authRoot, 0700); err != nil {
-			return err
-		}
+		defer os.RemoveAll(authRoot)
 		service.AuthRoot = authRoot
-		agent, err := cluster.NewAgent(store, api.NewExecutor(handler), cluster.AgentOptions{ControllerURL: os.Getenv("POKE_CONTROLLER_URL"), NodeID: os.Getenv("POKE_NODE_ID"), EnrollmentToken: os.Getenv("POKE_ENROLLMENT_TOKEN"), CAFile: os.Getenv("POKE_CA_FILE"), AllowHTTP: os.Getenv("POKE_ALLOW_INSECURE_HTTP") == "true"})
+		agent, err := cluster.NewAgent(api.NewExecutor(handler), cluster.AgentOptions{ControllerURL: os.Getenv("POKE_CONTROLLER_URL"), NodeID: os.Getenv("POKE_NODE_ID"), NodeToken: os.Getenv("POKE_NODE_TOKEN"), CAFile: os.Getenv("POKE_CA_FILE"), AllowHTTP: os.Getenv("POKE_ALLOW_INSECURE_HTTP") == "true"})
 		if err != nil {
 			return err
 		}

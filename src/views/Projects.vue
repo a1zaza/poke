@@ -96,7 +96,7 @@
                     class="btn btn-delete"
                     @click="confirmRemove(project.name)"
                     :disabled="isActing(project.name) || !project.isControlled"
-                    :title="project.isControlled ? '移除项目 (删除文件夹)' : '非受控项目无法操作'"
+                    :title="project.isControlled ? '移除项目' : '非受控项目无法操作'"
                   >
                     <Trash2 :size="14" />
                   </button>
@@ -110,7 +110,7 @@
       <ConfirmModal
         :isOpen="showConfirmRemove"
         title="确认移除项目"
-        :message="`确定要移除项目 ${pendingProjectName} 吗？这将停止容器并永久删除项目文件夹。`"
+        :message="`确定要移除项目 ${pendingProjectName} 吗？这将停止容器并移除受管配置；远程项目会保留宿主机业务文件，本机项目会删除项目目录。`"
         :isDanger="true"
         @confirm="handleConfirmRemove"
         @close="showConfirmRemove = false"
@@ -147,7 +147,8 @@ interface ProjectContainer {
 
 interface Project {
   name: string;
-  status: 'running' | 'partial' | 'stopped';
+  status: 'running' | 'partial' | 'stopped' | 'unknown';
+  actualStateAvailable?: boolean;
   runningCount: number;
   totalCount: number;
   workingDir: string;
@@ -218,6 +219,7 @@ const isActing = (name: string) => {
 };
 
 const getStatusText = (status: string) => {
+  if (status === 'unknown') return '状态待确认';
   switch (status) {
     case 'running':
       return '全部运行中';

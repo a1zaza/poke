@@ -3,6 +3,7 @@ module poke
 go 1.26.11
 
 require (
+	gopkg.in/yaml.v3 v3.0.1
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/gorilla/websocket v1.5.3
