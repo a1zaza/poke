@@ -31,25 +31,25 @@ Agent 主动连接 Controller，管理状态统一在 Controller 以 JSON 持久
 docker compose -f compose.yaml up -d
 ```
 
-从节点先准备宿主机 `/poke` 目录及 Docker socket，在本机 `.env` 中填写 Controller 地址、节点 ID 和 `POKE_NODE_TOKEN`，再执行：
+从节点先确认 Docker socket 可用、业务绝对路径已准备好，在本机 `.env` 中填写 Controller 地址、节点 ID 和 `POKE_NODE_TOKEN`，再执行：
 
 ```bash
 docker compose -f compose.agent.yaml up -d
 ```
 
-两个文件不合并运行。Controller 默认仅管理远程节点，不挂载本机 Docker socket；Agent 无端口映射。Controller 使用独立命名数据卷，Agent 将宿主机 `/poke` 整体映射到容器 `/poke`，仅业务目录和 Compose 运行材料位于该目录；节点和任务 JSON 保存在 Controller。`POKE_NODE_TOKEN` 必须长期保留，不再使用临时注册或本地身份文件。
+两个文件不合并运行。Controller 默认仅管理远程节点，不挂载本机 Docker socket；Agent 无端口映射。Controller 使用独立命名数据卷，Agent 默认仅挂载 Docker socket，不映射 `/poke`；Compose 运行副本在容器内按需生成，节点、任务和源配置 JSON 保存在 Controller。`POKE_NODE_TOKEN` 必须长期保留，不再使用临时注册或本地身份文件。
 
-`.env` 已加入 Git 忽略规则，不要提交真实注册凭据。Agent 数据保存在仓库之外的宿主机 `/poke`。模板采用挂载短写语法，启动前应确认 `/poke` 和 Docker socket 存在。
+`.env` 已加入 Git 忽略规则，不要提交真实注册凭据。业务目录在 Agent 所连接 Docker 的宿主机上，由 Compose 通过绝对路径挂载到业务容器，不需要经过 Agent 容器。启动前应确认 Docker socket 和业务目录存在。
 
 1. 以 Controller 模式部署当前 Poke 镜像，持久化 `/poke`。容器监听 80，对外提供受信任的 HTTPS 地址。
 2. HTTPS 入口需支持 `/agent/v1/connect`、`/agent/v1/stream` 和 `/ws/*` 的 WebSocket 升级，空闲连接超时应大于 60 秒。HTTPS 管理入口继续传递 `X-Forwarded-Proto: https` 或使用 `COOKIE_SECURE=true`。
 3. 登录 Controller，进入“节点与任务”。需要私有仓库时，先在“镜像仓库”保存认证，再回到“节点与任务”输入名称、选择授权仓库并生成长期节点 Token。
 4. 在 Agent 主机的 `.env` 中填写 `POKE_NODE_TOKEN=<长期节点Token>`。不要把实际凭据写入镜像、仓库、URL 或日志。
-5. 使用同一 Poke 镜像设置 `POKE_MODE=agent`、`POKE_CONTROLLER_URL`、`POKE_NODE_ID` 和 `POKE_NODE_TOKEN`。挂载宿主机 `/poke:/poke` 和 Docker socket；项目自动位于该目录下的 `projects` 子目录，无需额外挂载。无需映射 Agent 端口。建议启用容器运行时 `init` 和失败重启策略。
+5. 使用同一 Poke 镜像设置 `POKE_MODE=agent`、`POKE_CONTROLLER_URL`、`POKE_NODE_ID` 和 `POKE_NODE_TOKEN`。仅挂载 Docker socket；业务 bind mount 使用宿主机绝对路径，例如 `/srv/app/data:/data`。无需映射 Agent 端口。建议启用容器运行时 `init` 和失败重启策略。
 6. Agent 通过 ID/Token 认证并主动连接后，页面显示“在线”。选择该节点即可管理 Docker 资源。
 7. 长期保留 `POKE_NODE_ID`、`POKE_NODE_TOKEN` 和 Controller 地址。相同 ID 与 Token 的重启视为同一节点；同一节点只允许一个活动实例，不要将同一份身份同时部署到多台主机。
 
-主节点和各 Agent 必须使用不同的数据卷。更换 Controller 或节点身份时，应先停止原实例，确认原任务状态，再更新对应的地址、ID 和 Token；不能通过复制 Token 实现并行多副本。Agent 地址无需配置到 Controller，也不要求 Controller 能直接连接 Agent。若 Compose 项目使用相对路径 bind mount，Agent 内 `/poke/projects` 与 Docker 宿主机的项目路径需要保持一致，避免 Docker 将路径解析到另一位置。
+Controller 持久化管理数据，Agent 无需管理状态数据卷。更换 Controller 或节点身份时，应先停止原实例，确认原任务状态，再更新对应的地址、ID 和 Token；不能通过复制 Token 实现并行多副本。Agent 地址无需配置到 Controller，也不要求 Controller 能直接连接 Agent。默认模板不共享项目目录，不应使用 `./data:/data` 等相对 bind mount。若自行启用相对路径，需显式增加 `/poke/projects:/poke/projects`，保证 Agent 与 Docker 宿主机的项目路径一致。
 
 Agent 与 Docker 的通信仍取决于 Docker socket 或 `DOCKER_HOST`；节点控制通道在线表示管理连接正常，Docker 操作失败会作为明确的接口或任务错误返回。
 
@@ -61,7 +61,7 @@ Compose 模板仅保留必要配置；按需在部署副本中增加以下内容
 | --- | --- |
 | 修改主节点端口或绑定地址 | 修改 `ports`，例如 `127.0.0.1:8080:80`；容器端口保持 80 |
 | 强制 HTTPS Cookie | Controller 的 `environment` 增加 `COOKIE_SECURE: "true"`；HTTP 初始化访问时不要启用 |
-| 私有 CA | 将 CA 保存为宿主机 `/poke/ca.pem`，Agent 的 `environment` 增加 `POKE_CA_FILE: /poke/ca.pem` |
+| 私有 CA | 单独只读挂载 `./ca.pem:/run/poke-ca.pem:ro`，Agent 的 `environment` 增加 `POKE_CA_FILE: /run/poke-ca.pem` |
 | 自定义时区 | 服务的 `environment` 增加 `TZ: Asia/Shanghai` |
 | Rootless Docker | 将 Agent 的 socket 挂载源改为实际路径，容器目标仍为 `/var/run/docker.sock` |
 | 日志轮转 | 服务下增加 `logging`，使用 `json-file`，设置 `max-size: "10m"`、`max-file: "3"` |
@@ -69,7 +69,7 @@ Compose 模板仅保留必要配置；按需在部署副本中增加以下内容
 | Controller 健康检查 | 服务下增加 `healthcheck`，在容器内请求 `http://127.0.0.1:80/health` |
 | Controller 管理本机 Docker | 增加 `POKE_LOCAL_ENABLED: "true"`，并挂载 Docker socket 与 `/poke/projects` |
 
-请保留 Controller 数据卷和 Agent 的长期身份环境变量。Agent `/poke` 下只保存执行所需的 Compose 运行材料和业务文件；认证临时文件位于 `/tmp`，模板已配置 tmpfs。
+请保留 Controller 数据卷和 Agent 的长期身份环境变量。Agent 容器内 `/poke/projects` 只生成 Compose 运行副本，容器重建后可从 Controller 再次下发；业务文件保存在 Docker 宿主机的绝对路径。认证临时文件位于 `/tmp`，模板已配置 tmpfs。
 
 ## 身份和权限管理
 
@@ -122,7 +122,7 @@ Compose 模板仅保留必要配置；按需在部署副本中增加以下内容
 
 ## 远程项目源配置
 
-Controller 保存每个节点的项目源配置、当前版本及已部署版本；节点离线时可以查看和编辑源配置，保存不会部署；在线后通过“部署配置”应用选定的当前版本，运行状态不可用时会明确提示。外部项目在详情页通过“导入配置”提供完整 Compose 内容，导入仅保存配置，不立即部署。导入后须核对 `/poke/projects/<项目>` 下的相对挂载路径。
+Controller 保存每个节点的项目源配置、当前版本及已部署版本；节点离线时可以查看和编辑源配置，保存不会部署；在线后通过“部署配置”应用选定的当前版本，运行状态不可用时会明确提示。外部项目在详情页通过“导入配置”提供完整 Compose 内容，导入仅保存配置，不立即部署。导入后须核对业务挂载均使用 Docker 宿主机绝对路径，避免依赖 Agent 容器内的工作目录。
 
 远程项目首版不支持本地 build、env_file、include、extends、label_file、develop 和外部 configs/secrets 文件，也不支持宿主环境变量插值；请使用独立镜像和内联配置，容器内变量用 `$$` 转义。业务 bind mount 仍属于执行主机，移除远程项目不会删除业务目录。
 

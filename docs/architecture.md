@@ -51,7 +51,7 @@ Agent 仅在内存保存结果，Controller 保存终态后确认。每次握手
 
 Controller 是节点、授权、任务和项目源配置的唯一持久化来源，全部使用 JSON。Agent 不初始化本地配置、身份或任务 Store；只查询 Docker、执行操作，在本机生成必要运行材料。Controller 项目按节点和项目隔离，保存稳定项目 ID、源配置版本和已部署版本。项目详情可在节点离线时显示源配置，并明确实际状态不可用。
 
-外部 Compose 项目需显式导入源配置，导入不会立即修改 Docker。Agent 使用任务引用的源配置渲染固定快照，工作目录仍为 `/poke/projects/<项目>`；相对 bind mount 路径必须与宿主机一致。移除远程项目保留业务目录，只删除运行 Compose 文件及 Controller 中的有效项目记录（历史版本保留）。
+外部 Compose 项目需显式导入源配置，导入不会立即修改 Docker。Agent 使用任务引用的源配置渲染固定快照，运行工作目录为 Agent 容器内 `/poke/projects/<项目>`，默认不映射到宿主机；业务 bind mount 使用宿主机绝对路径。若自行使用相对路径，必须显式共享同路径项目目录。移除远程项目保留业务目录，只删除运行 Compose 文件及 Controller 中的有效项目记录（历史版本保留）。
 
 首版远程项目只接受自包含 Compose：不支持 build、env_file、include、extends、label_file、develop，以及外部 configs/secrets 文件或宿主环境输入；不读取宿主环境插值，容器内变量使用 `$$` 转义。外部文件仍须由部署者在 Docker 主机管理。
 

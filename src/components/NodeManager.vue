@@ -56,7 +56,7 @@
       <textarea :value="invitation.token" readonly aria-label="长期节点 Token" spellcheck="false" />
       <pre tabindex="0" aria-label="Agent 环境变量">{{ instructions }}</pre>
       <p>
-        挂载 <code>/poke:/poke</code> 和 Docker socket，使用当前 Poke 镜像。生产连接使用 HTTPS，私有 CA 可通过
+        仅需挂载 Docker socket，业务目录使用宿主机绝对路径。使用当前 Poke 镜像，生产连接使用 HTTPS，私有 CA 可通过
         <code>POKE_CA_FILE</code> 指定。POKE_NODE_TOKEN 需长期保留；相同 ID 与 Token 仅允许一个活动 Agent
         实例。
       </p>

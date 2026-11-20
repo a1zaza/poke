@@ -153,8 +153,8 @@
 
       <Modal :isOpen="showImport" title="导入项目配置" @close="showImport = false">
         <p class="settings-hint">
-          导入仅保存源配置，不会立即修改 Docker。后续执行将使用 /poke/projects
-          下的工作目录；请核对相对挂载路径，或改为宿主机绝对路径。暂不支持 build、env_file 等外部依赖。
+          导入仅保存源配置，不会立即修改 Docker。Agent 默认不共享项目目录，业务挂载请使用 Docker
+          宿主机绝对路径。暂不支持 build、env_file 等外部依赖。
         </p>
         <label class="settings-field"
           >Compose 配置<textarea v-model="importContent" class="textarea" rows="12" spellcheck="false" />

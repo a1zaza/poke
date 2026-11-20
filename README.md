@@ -81,7 +81,7 @@ docker compose -f compose.yaml up -d
 docker compose -f compose.agent.yaml up -d
 ```
 
-Agent 需要可访问的 Docker 守护进程，挂载 `/poke:/poke` 和 Docker socket。Controller 保存项目源配置、节点和任务 JSON；Agent `/poke` 仅存放执行材料和业务目录。节点凭据通过 `POKE_NODE_TOKEN` 长期传入，不能在连接成功后删除；同一身份仅允许一个活动实例。Controller 与每个 Agent 使用独立的数据目录。
+Agent 需要可访问的 Docker 守护进程，默认仅挂载 Docker socket，业务目录使用宿主机绝对路径。Controller 保存项目源配置、节点和任务 JSON；Agent 容器内仅生成可重建的 Compose 运行副本，无需映射 `/poke`。节点凭据通过 `POKE_NODE_TOKEN` 长期传入，不能在连接成功后删除；同一身份仅允许一个活动实例。Controller 数据卷独立保存，Agent 无需管理状态数据卷。
 
 完整步骤、单机模式、私有 CA、自定义端口和备份方法见 **[部署文档 →](docs/deployment.md)**。
 

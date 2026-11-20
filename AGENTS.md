@@ -70,3 +70,5 @@ Poke 是 Docker 与 Docker Compose 可视化管理工具。前端使用 Vue 3、
 - 重连握手携带 Agent 内存中的待处理任务 ID，用于处理“Controller 写入成功但 Agent 未收到”的窗口；未授权且丢失接收记录的任务取消，已许可但记录丢失的任务未知，不重发许可。Controller 后台在租约到期时收敛任务，避免 Agent 崩溃后永久等待。仅完整项目部署成功更新已部署版本，停止/拉取/单服务更新不冒充全量部署；单容器更新引用已部署配置版本。
 - Docker SDK 已迁移为 `github.com/moby/moby/client v0.6.3` 和 `github.com/moby/moby/api v1.57.0`，移除旧 Docker v24 SDK 及 distribution replace。新 SDK 默认自动协商，当前支持 API 1.40–1.57；显式 `DOCKER_API_VERSION` 会覆盖协商，遇到旧版本错误应检查该变量。客户端工厂及协商回归在 `server/main.go`、`server/main_test.go`；资源结果必须解包 Items/Container/Info/Report，存储卷保持 Volumes/Warnings，不能将 SDK 包装结构直接返回前端。
 - Docker 官方自 v29 起弃用 `github.com/docker/docker` Go 模块，后续 SDK 应迁移至 `github.com/moby/moby/client` 与 `github.com/moby/moby/api`；版本号与 Docker Engine 版本独立。升级需适配类型及方法签名并保留 API 协商回归，不能只替换版本号。
+
+- 按用户部署约定，Agent Compose 默认仅映射 Docker socket，不映射 `/poke`；业务 bind mount 使用 Docker 宿主机绝对路径。Compose 运行副本生成于 Agent 容器内 `/poke/projects`，容器重建后可从 Controller 恢复。使用私有 CA 时单独只读挂载；若自行启用相对路径，才需额外共享 `/poke/projects:/poke/projects`。

@@ -13,5 +13,4 @@ services:
     tmpfs:
       - /tmp
     volumes:
-      - /poke:/poke
       - /var/run/docker.sock:/var/run/docker.sock
