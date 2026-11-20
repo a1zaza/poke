@@ -51,6 +51,13 @@ func TestUIRouting(t *testing.T) {
 		{"GET", "/projects/demo.v1", 200, "页面"},
 		{"GET", "/containers/abc/exec", 200, "页面"},
 		{"GET", "/login", 200, "页面"},
+		{"GET", "/nodes", 200, "页面"},
+		{"GET", "/nodes/", 200, "页面"},
+		{"GET", "/registries", 200, "页面"},
+		{"GET", "/registries/", 200, "页面"},
+		{"GET", "/settings", 200, "页面"},
+		{"GET", "/nodes/missing", 404, ""},
+		{"GET", "/registries/missing", 404, ""},
 		{"GET", "/assets/app-12345678.js", 200, "console.log"},
 		{"GET", "/assets/missing.js", 404, ""},
 		{"GET", "/assets", 404, ""},
@@ -69,6 +76,8 @@ func TestUIRouting(t *testing.T) {
 		{"GET", "/assets/../index.html", 400, ""},
 		{"GET", "/assets%5csecret", 400, ""},
 		{"HEAD", "/projects/demo.v1", 200, ""},
+		{"HEAD", "/nodes", 200, ""},
+		{"HEAD", "/registries", 200, ""},
 	} {
 		t.Run(tt.method+tt.url, func(t *testing.T) {
 			r := request(e, tt.method, tt.url)
@@ -88,6 +97,8 @@ func TestUIRouting(t *testing.T) {
 	}
 	for _, tt := range []struct{ url, mime, cache string }{
 		{"/", "text/html", "no-cache"},
+		{"/nodes", "text/html", "no-cache"},
+		{"/registries", "text/html", "no-cache"},
 		{"/assets/app-12345678.js", "javascript", "immutable"},
 		{"/assets/app-12345678.css", "text/css", "immutable"},
 		{"/manifest.json", "application/json", "no-cache"},

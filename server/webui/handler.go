@@ -16,7 +16,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 )
 
-var pagePath = regexp.MustCompile(`^/(?:login|overview|containers(?:/[^/]+(?:/(?:logs|exec))?)?|images|networks|volumes|projects(?:/[^/]+)?|logs|settings)?/?$`)
+var pagePath = regexp.MustCompile(`^/(?:login|overview|containers(?:/[^/]+(?:/(?:logs|exec))?)?|images|networks|volumes|projects(?:/[^/]+)?|logs|settings|registries|nodes)?/?$`)
 var hashedAsset = regexp.MustCompile(`^assets/(?:.*/)?[^/]+-[A-Za-z0-9_-]{8,}\.[^/]+$`)
 
 // Register serves embedded UI in production and a dynamic logo in both modes.
